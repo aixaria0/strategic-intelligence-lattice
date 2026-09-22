@@ -55,6 +55,15 @@ The new synthetic contextual lab includes crossing reward curves, external Bayes
 
 In the terminal-style UI, type /query 2 720 hybrid after selecting 256 trials and suitable risk threshold in the sidebar. The certified action is the simulated admissible recommendation; the exploratory action is **research-only** and may be unsafe. Read docs/QUERY_LAB.md, docs/SAFETY_INFORMATION_LIMITS.md and docs/QUERY_LAB_RESULTS.md for assumptions, empirical results and failure modes.
 
+## Evidence-based research defaults and reward EVSI
+
+In the harder query-level testbed, uniform allocation currently outperforms the experimental ACA heuristic on conservative, model-conditional feasible action selection. The query-lab terminal and CLI therefore default to **uniform**. To study exact one-batch Beta-Binomial reward EVSI separately:
+
+    sil query-lab --scenario 2 --trials 256 --budget 720 --method evsi_reward --output evsi-example.json
+    python experiments/evsi_reward_benchmark.py --seeds 24 --budget 720 --maximum 256 --output evsi-results.json
+
+The calculation in src/sil/evsi.py is exact for the declared independent reward-only Bayesian model, NOT the complete safety-constrained problem. It did not beat uniform on certified choice accuracy or wall time in the initial 24-scenario study. Read docs/EVSI_REWARD.md and docs/EVSI_REWARD_RESULTS.md for formulae, counterexamples and full linked experiments. See docs/QUERY_LAB_RESULTS.md for the 48-scenario lower/higher-budget comparison and docs/SAFETY_INFORMATION_LIMITS.md for the conditional sample-information bound.
+
 ## Scientific status and honesty
 
 Original "Quantum Automata" refers to parallel **classical** hypothetical models, not quantum hardware. A low-entropy outcome distribution does not imply high probability of favorable outcomes or inevitable victory. Old 3D constant planes are not measured entropy basins. The historical Flask "Core LLM" was a string formatter rather than an actual language model. Describing these early ideas as operational or publication-proven would be incorrect.
