@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/certificate-portfolio.yml
       - src/sil/certificate_planner.py
+      - src/sil/query_lab.py
       - experiments/certificate_portfolio_benchmark.py
 jobs:
   experiment:
