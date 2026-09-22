@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/cpu-frontier.yml
       - experiments/cpu_budget_frontier.py
+      - src/sil/certificate_sprint.py
+      - src/sil/query_lab.py
 jobs:
   calibrate-and-validate:
     runs-on: ubuntu-latest
