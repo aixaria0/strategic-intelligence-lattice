@@ -44,3 +44,12 @@ def test_evsi_mode_obeys_shared_seed_budget_and_safety_gate():
     assert a["truly_safe"]
     assert a["exploration_is_not_authorized"]
     assert a["method"] == "evsi_reward"
+
+
+def test_evsi_prices_last_partial_batch_without_overspending():
+    cfg = QueryConfig(maximum=64, pilot=16, batch=16, budget=145, seed=311)
+    scenario = make_scenario(cfg.seed, 1, cfg.threshold)
+    result = allocate(scenario, cfg, "evsi_reward")
+    assert result["used"] == 145
+    assert sum(map(sum, result["counts"])) == 145
+    assert result["truly_safe"]
