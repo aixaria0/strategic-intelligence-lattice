@@ -201,7 +201,7 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio", "certificate_targeted", "certificate_sprint"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio", "certificate_targeted", "certificate_sprint", "uniform_bulk"):
         raise ValueError("unknown method")
     reward_gen, safe_gen = query_generators(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
@@ -236,6 +236,14 @@ def allocate(scenario, cfg, method):
     portfolio_history = []
     fallback_draws_left = 0
     sprint_pilot = None
+    if method == "uniform_bulk":
+        # Fair low-overhead baseline: exactly uniform target counts with the
+        # SAME bulk sampling mechanics as sprint, but no pilot-based targeting.
+        for m, a, amount in sprint_schedule(counts, None, cap, cfg.maximum):
+            sample(m, a, amount)
+            used += amount
+        if used != cap:
+            raise AssertionError("uniform bulk failed to account for budget")
     if method == "certificate_sprint":
         started = perf_counter()
         sprint_pilot = choose_certificate_sprint(
