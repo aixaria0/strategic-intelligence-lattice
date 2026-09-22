@@ -295,7 +295,9 @@ def allocate(scenario, cfg, method):
                 if planned is None:
                     # No affordable forecast is NOT a proof of zero future
                     # information. Continue fair coverage for a bounded interval.
-                    fallback_draws_left = min(CELLS * cfg.batch, cap - used)
+                    fallback_interval = (CELLS * cfg.batch if method == "certificate_portfolio"
+                                         else CELLS * cfg.maximum)
+                    fallback_draws_left = min(fallback_interval, cap - used)
                 else:
                     portfolio_history.append(planned)
                     portfolio_queue = [
