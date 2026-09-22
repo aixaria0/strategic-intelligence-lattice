@@ -33,14 +33,14 @@ The historical fixed-mode API and score function remain unchanged; ACA is opt-in
 
 From repo root:
 
-\`\`\`bash
+```bash
 python -m pip install -e '.[test,ui]'
 python -m pytest -q
 sil run --rounds 3 --trials 128 --allocation fixed --seed 2026 --output fixed.json
 sil run --rounds 3 --trials 128 --allocation adaptive --budget 1152 --seed 2026 --output adaptive.json
 python experiments/aca_benchmark.py --seeds 12 --trials 128 --holdout 512 --output aca-results.json
 streamlit run app.py
-\`\`\`
+```
 
 For 128 trials/model/action, fixed spends 3×3×128=1152 action-rollouts per agent per round; adaptive is *capped* at 1152 and may stop early. The pilot minimum is 144; a budget lower than the pilot is rejected. The cap is counted in simulated trajectories, not CPU time. Reanalysis of empirical distributions after each batch can outweigh savings: **always report wall time, memory and quality separately**.
 
