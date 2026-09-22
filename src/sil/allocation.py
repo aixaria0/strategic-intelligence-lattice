@@ -9,14 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
-from .core import ACTIONS, MODEL_STRENGTHS, SIGMA, Config, discrete_entropy, reward, rollout
+from .core import ACTIONS, MODEL_STRENGTHS, SIGMA, Config, discrete_entropy, reward
 
 
 @dataclass(frozen=True)
 class Allocation:
     budget: int
     pilot: int = 16
-    batch: int = 16
+    batch: int = 64
     stop_gap: float = 2.0
 
     def validate(self, cfg: Config) -> None:
@@ -24,8 +24,8 @@ class Allocation:
         maximum = len(ACTIONS) * len(MODEL_STRENGTHS) * cfg.trials
         if not 16 <= self.pilot <= cfg.trials:
             raise ValueError("pilot must be between 16 and cfg.trials")
-        if not 1 <= self.batch <= cfg.trials:
-            raise ValueError("batch must be between 1 and cfg.trials")
+        if not 1 <= self.batch <= 100_000:
+            raise ValueError("batch must be between 1 and 100000; per-model sampling is capped separately")
         if self.budget < minimum or self.budget > maximum:
             raise ValueError(f"budget must be {minimum}..{maximum} action-rollouts")
         if not np.isfinite(self.stop_gap) or self.stop_gap <= 0:
@@ -129,10 +129,20 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         nonlocal used
         shocks = generators[model_id].normal(
             0, SIGMA, size=(count, cfg.horizon, 2))
-        for aid, action in enumerate(ACTIONS):
-            terminal, minimum = rollout(agent.state, float(action),
-                                        float(MODEL_STRENGTHS[model_id]), shocks)
-            samples[model_id][aid].append((terminal, minimum))
+        # Vectorize ACTIONS too: a single horizon loop for the whole
+        # action-by-trial batch, instead of a Python horizon loop per action.
+        strength = float(MODEL_STRENGTHS[model_id])
+        drift = np.stack((
+            0.015 + 0.080 * ACTIONS - 0.052 * strength,
+            0.020 - 0.065 * ACTIONS - 0.012 * strength,
+        ), axis=-1)[:, None, :]
+        states = np.broadcast_to(agent.state, (num_actions, count, 2)).copy()
+        minimum = states[:, :, 1].copy()
+        for t in range(cfg.horizon):
+            states = np.clip(states + drift + shocks[None, :, t, :], 0.0, 1.0)
+            minimum = np.minimum(minimum, states[:, :, 1])
+        for aid in range(num_actions):
+            samples[model_id][aid].append((states[aid].copy(), minimum[aid].copy()))
         model_trials[model_id] += count
         used += num_actions * count
 
@@ -189,9 +199,8 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
             break
         sample(selected_model, count)
 
-    final_rows, _ = _score_rows(samples, agent.prior, agent.alpha,
-                                agent.beta, cfg.min_safe_probability)
-    return final_rows, {
+    # rows already describe the final sample collection: no redundant histogram pass.
+    return rows, {
         "allocation_mode": "adaptive",
         "rollouts_used": int(used),
         "rollouts_cap": int(num_models * num_actions * cfg.trials),
