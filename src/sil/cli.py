@@ -14,8 +14,9 @@ def render(board):
         print(f"{row['name']:<12} {row['cumulative_reward']:>13.4f} "
               f"{row['cumulative_uplift']:>12.4f} {row['safety_violations']:>13}")
 
-def chat(config: Config, num_agents: int, evolve: bool):
-    lab = Tournament(config, num_agents, evolve)
+def chat(config: Config, num_agents: int, evolve: bool,
+         allocation_mode: str = "fixed", simulation_budget: int | None = None):
+    lab = Tournament(config, num_agents, evolve, allocation_mode, simulation_budget)
     print("SIL / terminal research console. " + HELP)
     while True:
         try:
@@ -46,7 +47,7 @@ def chat(config: Config, num_agents: int, evolve: bool):
             elif verb == "history":
                 print(json.dumps(lab.history[-1] if lab.history else {}, indent=2))
             elif verb == "reset":
-                lab = Tournament(config, num_agents, evolve)
+                lab = Tournament(config, num_agents, evolve, allocation_mode, simulation_budget)
                 print("Synthetic simulation reset.")
             else:
                 print("Unknown command. /help")
@@ -62,15 +63,19 @@ def main():
     parser.add_argument("--agents", type=int, default=3)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--no-evolution", action="store_true")
+    parser.add_argument("--allocation", choices=["fixed", "adaptive"], default="fixed")
+    parser.add_argument("--budget", type=int, help="action-rollout budget for adaptive mode; default=fixed cap")
     parser.add_argument("--output", type=Path, help="JSON audit snapshot path")
     args = parser.parse_args()
     cfg = Config(trials=args.trials, horizon=args.horizon, seed=args.seed)
     if args.mode == "chat":
-        chat(cfg, args.agents, not args.no_evolution)
+        chat(cfg, args.agents, not args.no_evolution, args.allocation, args.budget)
         return
-    lab = Tournament(cfg, args.agents, not args.no_evolution)
+    lab = Tournament(cfg, args.agents, not args.no_evolution, args.allocation, args.budget)
     lab.run(args.rounds)
     render(lab.leaderboard())
+    print(f"Allocation: {args.allocation}; total action-rollouts: "
+          f"{sum(r['total_action_rollouts'] for r in lab.history)}")
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps({"config": vars(cfg), "history": lab.history,
