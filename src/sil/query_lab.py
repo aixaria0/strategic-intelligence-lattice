@@ -115,14 +115,14 @@ def kl_confidence_interval(successes, counts, cfg):
         too_far = binary_kl(p, mid) > level
         lo = np.where(too_far, mid, lo)
         hi = np.where(too_far, hi, mid)
-    lower = hi
+    lower = lo  # outward rounding: retain the conservative endpoint
     lo, hi = p.copy(), np.ones_like(p)
     for _ in range(36):
         mid = (lo + hi) / 2
         too_far = binary_kl(p, mid) > level
         hi = np.where(too_far, mid, hi)
         lo = np.where(too_far, lo, mid)
-    upper = lo
+    upper = hi  # outward rounding: retain the conservative endpoint
     return lower, upper
 
 
