@@ -16,7 +16,7 @@ from .core import ACTIONS, MODEL_STRENGTHS, SIGMA, Config, discrete_entropy, rew
 class Allocation:
     budget: int
     pilot: int = 16
-    batch: int = 64
+    batch: int = 16
     stop_gap: float = 2.0
 
     def validate(self, cfg: Config) -> None:
@@ -53,15 +53,22 @@ def _statistics(terminals: np.ndarray, minimum: np.ndarray,
 
 def _score_rows(samples: list[list[list[tuple[np.ndarray, np.ndarray]]]],
                 weights: np.ndarray, alpha: float, beta: float,
-                safety_threshold: float) -> tuple[list[dict], list[list[dict]]]:
-    """Rebuild current score with same empirical definitions as fixed evaluate()."""
+                safety_threshold: float,
+                cached: list[list[dict] | None] | None = None,
+                dirty_model: int | None = None) -> tuple[list[dict], list[list[dict]]]:
+    """Recompute only newly sampled model statistics, keeping fixed score definitions."""
     model_stats: list[list[dict]] = []
-    for model_samples in samples:
+    for model_id, model_samples in enumerate(samples):
+        if cached is not None and cached[model_id] is not None and model_id != dirty_model:
+            model_stats.append(cached[model_id])
+            continue
         by_action = []
         for action_id, chunks in enumerate(model_samples):
             terminal = np.concatenate([pair[0] for pair in chunks], axis=0)
             minimum = np.concatenate([pair[1] for pair in chunks], axis=0)
             by_action.append(_statistics(terminal, minimum, float(ACTIONS[action_id])))
+        if cached is not None:
+            cached[model_id] = by_action
         model_stats.append(by_action)
 
     rows: list[dict] = []
@@ -150,9 +157,13 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         sample(model_id, allocation.pilot)
     stop_reason = "budget_exhausted"
     last_gap, last_width = None, None
+    cached_stats: list[list[dict] | None] = [None] * num_models
+    dirty_model: int | None = None
     while True:
         rows, stats = _score_rows(samples, agent.prior, agent.alpha, agent.beta,
-                                  cfg.min_safe_probability)
+                                  cfg.min_safe_probability,
+                                  cached=cached_stats, dirty_model=dirty_model)
+        dirty_model = None
         feasible = [aid for aid, row in enumerate(rows) if row["feasible"]]
         ordered = sorted(feasible if feasible else list(range(num_actions)),
                          key=lambda aid: rows[aid]["score"], reverse=True)
@@ -198,6 +209,7 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         if count < 1:
             break
         sample(selected_model, count)
+        dirty_model = selected_model
 
     # rows already describe the final sample collection: no redundant histogram pass.
     return rows, {
