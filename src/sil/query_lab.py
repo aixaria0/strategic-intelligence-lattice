@@ -7,8 +7,10 @@ This model is not a representation of real markets or political actors.
 """
 from dataclasses import dataclass
 from math import log
+from time import perf_counter
 import numpy as np
 from .evsi import reward_batch_evsi
+from .voc import constrained_batch_voc
 
 K, A = 3, 3
 CELLS = K * A
@@ -22,6 +24,7 @@ class QueryConfig:
     threshold: float = 0.75
     delta: float = 0.05
     seed: int = 2026
+    compute_price: float = 0.0  # unit: expected synthetic value per simulated cell draw
 
     def __post_init__(self):
         if not 8 <= self.pilot <= self.maximum <= 100000:
@@ -34,6 +37,8 @@ class QueryConfig:
             raise ValueError("bad threshold or delta")
         if self.seed < 0:
             raise ValueError("negative seed")
+        if not np.isfinite(self.compute_price) or self.compute_price < 0:
+            raise ValueError("compute_price must be nonnegative and finite")
 
 @dataclass(frozen=True)
 class Scenario:
@@ -177,25 +182,35 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor"):
         raise ValueError("unknown method")
     reward_stream, safe_stream = streams(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
     reward_sum = np.zeros((K, A), dtype=int)
     safe_sum = np.zeros((K, A), dtype=int)
+    if method == "c_voc_governor" and cfg.compute_price <= 0:
+        raise ValueError("c_voc_governor requires explicit positive compute_price")
     cap = CELLS * cfg.maximum if method == "fixed" else cfg.budget
     chooser = np.random.default_rng(np.random.SeedSequence(
         [cfg.seed, scenario.identifier, 73919]))
+    sampling_seconds = 0.0
+    planning_seconds = 0.0
+    lookahead_evaluations = 0
     def sample(m, a, n):
+        nonlocal sampling_seconds
+        started = perf_counter()
         lo, hi = counts[m, a], counts[m, a] + n
         reward_sum[m, a] += int(reward_stream[m, a, lo:hi].sum())
         safe_sum[m, a] += int(safe_stream[m, a, lo:hi].sum())
         counts[m, a] = hi
+        sampling_seconds += perf_counter() - started
     for m in range(K):
         for a in range(A):
             sample(m, a, cfg.pilot)
     used = int(counts.sum())
     stop = "budget_exhausted"
+    cached_voc = None
+    last_information_per_query = None
     while used < cap:
         if method in ("fixed", "uniform") or (method == "hybrid" and used < cap // 2):
             # Hybrid reserves its first half budget for equal cell coverage,
@@ -203,6 +218,43 @@ def allocate(scenario, cfg, method):
             candidates = -counts.astype(float)
         elif method == "random":
             candidates = chooser.random((K, A))
+        elif method in ("c_voc", "c_voc_governor"):
+            started = perf_counter()
+            pending = np.minimum(np.minimum(cfg.batch, cap - used),
+                                 cfg.maximum - counts)
+            # Recalculate only at checkpoints: scoring every individual cell
+            # can cost more CPU than running the synthetic query itself.
+            interval = CELLS * cfg.batch
+            if cached_voc is None or used % interval == 0:
+                candidate_scores = np.full((K, A), -np.inf)
+                for block_size in np.unique(pending[pending > 0]):
+                    forecast = constrained_batch_voc(
+                        reward_sum, safe_sum, counts, np.asarray(scenario.posterior),
+                        cfg.threshold, cfg.delta, cfg.maximum, int(block_size))
+                    lookahead_evaluations += 1
+                    candidate_scores[pending == block_size] = (
+                        np.maximum(0.0, forecast["decision_evsi"][pending == block_size])
+                        / float(block_size))
+                cached_voc = candidate_scores
+            candidates = cached_voc.copy()
+            candidates[pending <= 0] = -np.inf
+            available = candidates[np.isfinite(candidates)]
+            last_information_per_query = float(max(available, default=0.0))
+            # Only the explicit governor mode may stop for estimated value
+            # below cost, and only after every cell has substantial coverage.
+            # A single batch has zero lookahead value if many batches would
+            # be needed to reach a safety boundary: NOT a global optimality proof.
+            if (method == "c_voc_governor" and
+                    min(counts.flat) >= max(64, cfg.pilot) and
+                    last_information_per_query <= cfg.compute_price):
+                stop = "governor_one_step_value_below_price"
+                planning_seconds += perf_counter() - started
+                break
+            if not np.any(available > cfg.compute_price):
+                # Explicit coverage fallback for delayed, multi-batch
+                # information that one-step predictive lookahead misses.
+                candidates = -counts.astype(float)
+            planning_seconds += perf_counter() - started
         elif method == "evsi_reward":
             # EXACT reward-only Beta-Binomial one-batch EVSI for each cell's
             # ACTUAL potential draw count, normalized by simulation query cost.
@@ -242,6 +294,8 @@ def allocate(scenario, cfg, method):
             break
         sample(m, a, int(n))
         used += int(n)
+        if method in ("c_voc", "c_voc_governor") and counts[m, a] >= cfg.maximum:
+            cached_voc = None
     final = assess(reward_sum, safe_sum, counts, scenario, cfg)
     a = final["action"]
     # Research-only exploration may select a statistically UNcertified action.
@@ -277,6 +331,11 @@ def allocate(scenario, cfg, method):
             })
     return dict(method=method, scenario=scenario.identifier,
                 budget=cap, used=used, counts=counts.tolist(),
+                compute_price=cfg.compute_price if method == "c_voc_governor" else None,
+                planning_seconds=planning_seconds,
+                sampling_seconds=sampling_seconds,
+                lookahead_evaluations=lookahead_evaluations,
+                last_information_per_query=last_information_per_query,
                 action=a, oracle=scenario.oracle_action,
                 oracle_value=float(value[scenario.oracle_action]),
                 selected_true_value=float(value[a]),
