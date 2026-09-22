@@ -1,0 +1,32 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{hyperref}
+\title{Strategic Intelligence Lattice: A Reproducible Synthetic Testbed for Belief-Aware, Risk-Constrained Scenario Selection}
+\author{Research working draft --- authorship to be specified}
+\date{September 2026}
+\newtheorem{proposition}{Proposition}
+\begin{document}
+\maketitle
+\begin{abstract}
+We describe a reproducible, human-directed synthetic decision laboratory that evaluates constrained actions against an ensemble of opponent models using common-random-number Monte Carlo rollouts. It separates fixed observable utility and a matched baseline from policy-selection penalties for downside and empirical terminal entropy. Bayesian model weights use recorded simulated observations. This working paper defines falsifiable quantities and a conditional stochastic-stability proposition; it reports no real-world validation, novel convergence theorem for the implemented policy, or market prediction performance.
+\end{abstract}
+\section{Scope and system model}
+Let $S_t=(v_t,r_t)\in[0,1]^2$ represent synthetic value and reserve. An administrator sets $a_t\in\{0,1/2,1\}$ and a model hypothesis $m\in\{0,1/2,1\}$. The illustrative simulator uses $S_{t+1}=\Pi_{[0,1]^2}(S_t+d(a_t,m)+\epsilon_t)$ with independent Gaussian perturbations and explicit clipping. Clipping changes the observation likelihood at boundaries. The hidden synthetic model is varied on a deterministic schedule, not a model of human behavior.
+\section{Statistics and objectives}
+Let $F=\{(v,r):v\ge .60,\ r\ge .20\}$. We estimate $\hat p_F(a,m)=N^{-1}\sum_i\mathbf1\{S_h^{(i)}\in F\}$ and empirical Shannon entropy of the $5\times5$ histogram of terminal states conditioned on $F$, when support is sufficient. No assumption implies that lower conditional entropy increases $\hat p_F$. Fixed reward is $R(S,a)=v+.35r-.04a$. The selection score is $\sum_m w_m[\widehat{\mathbb E}R_m-\alpha\,\widehat{D}_m-.1\beta\,\hat H_m]$, subject to a per-model empirical reserve-safety gate. Policy weights do not enter the observed reward used for evaluation.
+\section{Belief update}
+A model posterior is $w_{t+1}(m)=\bar w_t(m)\ell_m(o_t)/\sum_j\bar w_t(j)\ell_j(o_t)$, with switching prediction $\bar w_t(m)=.85w_t(m)+.15/K$ where $o_t$ is a recorded transition and $\ell_m$ the declared Gaussian approximation to its observation likelihood. This posterior is conditionally valid only if the assumed observation model is adequate.
+\section{Conditional stability statement}
+\begin{proposition}
+Let $L:S\to[0,\infty)$ and suppose a policy and a transition kernel satisfy, for every admissible state, $\mathbb E[L(S_{t+1})\mid S_t]\le\rho L(S_t)+b$ with $0\le\rho<1$ and $b\ge0$. Then $\mathbb E[L(S_t)]\le \rho^tL(S_0)+b(1-\rho^t)/(1-\rho)$.
+\end{proposition}
+\begin{proof}
+Take total expectations in the assumed drift inequality and iterate the resulting linear recurrence.
+\end{proof}
+The proposition bounds expected $L$; it proves neither almost-sure convergence to a specific favorable basin nor that entropy reduction implies its premise. Establishing the premise for the implemented controller is future work.
+\section{Evaluation protocol}
+Report matched-seed baseline uplift, constraint violations, posterior calibration, confidence intervals across independent seeds, simulator calls and CPU time. Compare against random feasible actions, action zero, an oracle synthetic-model policy and ablations of downside/entropy penalties. Real-domain experiments must be separately validated.
+\section{Limitations and research questions}
+The toy model has three fixed opponent hypotheses, finite actions, boundary-dependent likelihood approximation, heuristic safety gate and empirical finite-bin entropy. Unknown strategies and unmodeled constraints can invalidate beliefs. Adaptive computation allocation and a true multi-domain ontology remain proposed.
+\end{document}

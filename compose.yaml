@@ -1,0 +1,9 @@
+services:
+  sil:
+    build: .
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    restart: unless-stopped

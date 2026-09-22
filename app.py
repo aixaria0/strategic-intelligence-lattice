@@ -1,0 +1,88 @@
+"""Lightweight terminal-style Streamlit human control and on-demand charts."""
+from __future__ import annotations
+import json
+import streamlit as st
+from sil.core import Config
+from sil.engine import Tournament
+from sil.reframer import explain
+
+st.set_page_config(page_title="SIL / Research Terminal", layout="wide")
+st.markdown("""<style>
+.stApp {background: #10151b; color: #d5e3dc;}
+[data-testid="stChatMessage"] {border: 1px solid #283944; border-radius: 5px;}
+code, pre {color: #a6e0c8 !important;}
+</style>""", unsafe_allow_html=True)
+st.title("SIL / Strategic Intelligence Lattice")
+st.caption("SYNTHETIC RESEARCH ONLY · No market feed, adversarial deployment, or action execution")
+with st.sidebar:
+    st.header("Human constraints")
+    seed = st.number_input("Seed", min_value=0, max_value=2**31-1, value=2026)
+    trials = st.select_slider("Monte Carlo trials / model", options=[16, 32, 64, 128, 256, 512], value=128)
+    horizon = st.slider("Rollout horizon", 1, 32, 8)
+    n_agents = st.slider("Research agents", 2, 12, 3)
+    safety = st.slider("Minimum empirical safety / model", 0.0, 1.0, 0.80, 0.05)
+    evolve = st.toggle("Heuristic parameter exploration", value=True)
+    show_chart = st.toggle("On-demand reward chart", value=False)
+    if st.button("Reset lab"):
+        st.session_state.pop("lab", None)
+        st.session_state.pop("transcript", None)
+        st.rerun()
+
+config = Config(trials=trials, horizon=horizon, seed=int(seed), min_safe_probability=safety)
+signature = (seed, trials, horizon, n_agents, safety, evolve)
+if st.session_state.get("signature") != signature or "lab" not in st.session_state:
+    st.session_state.lab = Tournament(config, num_agents=n_agents, evolve=evolve)
+    st.session_state.signature = signature
+    st.session_state.transcript = [{"role": "assistant", "content":
+        "SIL ready. /run [n] · /agents · /inspect N · /history · /explain · /help"}]
+lab = st.session_state.lab
+for message in st.session_state.transcript[-18:]:
+    with st.chat_message(message["role"]):
+        st.code(message["content"])
+command = st.chat_input("sil> /run 3")
+if command:
+    st.session_state.transcript.append({"role": "user", "content": command})
+    parts = command.strip().split()
+    verb = parts[0].lower().lstrip("/") if parts else ""
+    try:
+        if verb == "run":
+            count = int(parts[1]) if len(parts) > 1 else 1
+            lab.run(count)
+            output = f"Completed round {lab.round}.\n" + json.dumps(lab.leaderboard(), indent=2)
+        elif verb == "agents":
+            output = json.dumps(lab.leaderboard(), indent=2)
+        elif verb == "inspect":
+            agent = lab.agents[int(parts[1]) - 1]
+            output = json.dumps({"name": agent.name, "state": agent.state.tolist(),
+                                 "posterior": agent.prior.tolist(), "alpha": agent.alpha,
+                                 "beta": agent.beta}, indent=2)
+        elif verb == "history":
+            output = json.dumps(lab.history[-1] if lab.history else {}, indent=2)
+        elif verb == "explain":
+            output = explain({"round": lab.round, "board": lab.leaderboard(),
+                              "most_recent": lab.history[-1] if lab.history else None})
+        elif verb == "help":
+            output = "/run [n] /agents /inspect N /history /explain /help — synthetic research only."
+        else:
+            output = "Unknown command. Use /help."
+    except (ValueError, IndexError) as exc:
+        output = f"Invalid argument: {exc}"
+    st.session_state.transcript.append({"role": "assistant", "content": output})
+    st.rerun()
+if lab.history:
+    st.subheader("Current experimental results")
+    st.dataframe(lab.leaderboard(), use_container_width=True, hide_index=True)
+    if show_chart:
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        for agent in lab.agents:
+            y = [row["cumulative_reward"] for record in lab.history
+                 for row in record["agents"] if row["agent"] == agent.name]
+            fig.add_scatter(x=list(range(1, len(y) + 1)), y=y, mode="lines", name=agent.name)
+        fig.update_layout(title="Observed cumulative synthetic reward", xaxis_title="Round",
+                          yaxis_title="Cumulative reward", height=300)
+        st.plotly_chart(fig, use_container_width=True)
+    st.download_button("Export deterministic audit JSON",
+                       data=json.dumps({"seed": config.seed, "history": lab.history,
+                                        "leaderboard": lab.leaderboard()}, indent=2),
+                       file_name="sil-audit.json", mime="application/json")
