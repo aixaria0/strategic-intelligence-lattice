@@ -63,7 +63,7 @@ if command:
         elif verb == "query":
             scenario_id = int(parts[1]) if len(parts) > 1 else 0
             query_budget = int(parts[2]) if len(parts) > 2 else 9 * trials
-            query_method = parts[3].lower() if len(parts) > 3 else "uniform"
+            query_method = parts[3].lower() if len(parts) > 3 else "uniform_bulk"
             query_price = float(parts[4]) if len(parts) > 4 else 0.0
             qcfg = QueryConfig(maximum=trials, budget=query_budget,
                                threshold=safety, seed=int(seed),
