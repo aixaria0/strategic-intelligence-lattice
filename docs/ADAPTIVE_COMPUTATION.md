@@ -23,9 +23,10 @@ Here q is a proposed *simulation query*, D is current observations, and Y_q is i
 2. Pilot with 16 shock trajectories **per model** and **all actions** for each shock (3 models × 3 actions × 16 = 144 action-rollouts).
 3. For each model/action calculate sample mean fixed reward, downside shortfall, conditional terminal histogram entropy if ≥12 favorable outcomes (otherwise conservative penalty 1), favorable-state occupancy and empirical path reserve-safety frequency.
 4. Combine models using the current recorded-observation Bayesian posterior and the existing weighted scoring rule. Use the same empirical feasibility threshold as fixed allocation.
-5. Prioritize the next model by a heuristic of posterior weight × top-two-action utility standard-error proxy plus a risk-boundary proximity term, adjusted for sample size. Sample all actions with shared shocks for that model. Unallocated models retain their own deterministic random streams.
-6. Stop at human action-rollout budget or configured per-model maximum. Optionally stop when a large empirical decision gap exceeds a conservative *heuristic* uncertainty allowance and constraints appear clearly away from the threshold. This is not a theorem or formal risk certificate.
-7. Record per-model counts, selected action, cumulative synthetic realized reward versus matched action-zero baseline, posterior update and stop reason.
+5. Update inexpensive running reward moments, mean observed shortfall and safety counts for each newly sampled model. Prioritize the next model using a heuristic of posterior-weighted top-two-action utility uncertainty plus risk-boundary proximity, adjusted for sample size. Intermediate rankings use reward-minus-mean-shortfall as a cheap proxy; they are **not** the final scoring function.
+6. Sample all actions with shared shocks for the selected model, while unsampled models retain independent deterministic random streams. Full quantiles and terminal histograms are computed just once after the final batch.
+7. Stop at human action-rollout budget or configured per-model maximum. Optionally stop when a large empirical decision gap exceeds a conservative *heuristic* uncertainty allowance and constraints appear clearly away from the threshold. This is not a theorem or formal risk certificate.
+8. Recompute the original fixed-mode score from final sampled outcomes, then record per-model counts, selected action, cumulative synthetic realized reward versus matched action-zero baseline, posterior update and stop reason.
 
 The historical fixed-mode API and score function remain unchanged; ACA is opt-in. The simulator never executes an external action. Nothing in this code claims a genuine physical "entropy basin" or ensures positive real-world gains.
 
@@ -42,7 +43,7 @@ python experiments/aca_benchmark.py --seeds 12 --trials 128 --holdout 512 --outp
 streamlit run app.py
 ```
 
-For 128 trials/model/action, fixed spends 3×3×128=1152 action-rollouts per agent per round; adaptive is *capped* at 1152 and may stop early. The pilot minimum is 144; a budget lower than the pilot is rejected. The cap is counted in simulated trajectories, not CPU time. Reanalysis of empirical distributions after each batch can outweigh savings: **always report wall time, memory and quality separately**.
+For 128 trials/model/action, fixed spends 3×3×128=1152 action-rollouts per agent per round; adaptive is *capped* at 1152 and may stop early. The pilot minimum is 144; a budget lower than the pilot is rejected. The cap is counted in simulated trajectories, not CPU time. Using incremental moments avoids reanalysis of all terminal histograms after each batch. However, ranking/decision overhead can still outweigh simulation savings: **always report wall time, memory and quality separately**.
 
 The benchmark fixes an equal maximum budget, uses the same start state, prior and seed for fixed/adaptive evaluation, then scores selected actions on an independent held-out stochastic seed. Report selected-action agreement with held-out best feasible candidate, holdout feasibility, selection regret, actual rollout usage and measured wall time; include all raw records and run multiple independent seeds. A small exploratory benchmark does not establish general superiority.
 
