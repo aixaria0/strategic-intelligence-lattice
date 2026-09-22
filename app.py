@@ -22,6 +22,14 @@ with st.sidebar:
     n_agents = st.slider("Research agents", 2, 12, 3)
     safety = st.slider("Minimum empirical safety / model", 0.0, 1.0, 0.80, 0.05)
     evolve = st.toggle("Heuristic parameter exploration", value=True)
+    allocation_mode = st.selectbox("Computation allocation", ("fixed", "adaptive"))
+    full_cap = 9 * trials
+    allowed_budgets = [value for value in (144, 288, 576, 1152, 2304, 4608)
+                       if value <= full_cap]
+    budget = st.select_slider("Action-rollout budget / agent / round",
+                              options=allowed_budgets, value=full_cap,
+                              disabled=allocation_mode == "fixed")
+    st.caption("Adaptive: shared shocks across actions within each model. Budget counts action-rollouts, not wall time.")
     show_chart = st.toggle("On-demand reward chart", value=False)
     if st.button("Reset lab"):
         st.session_state.pop("lab", None)
@@ -29,9 +37,11 @@ with st.sidebar:
         st.rerun()
 
 config = Config(trials=trials, horizon=horizon, seed=int(seed), min_safe_probability=safety)
-signature = (seed, trials, horizon, n_agents, safety, evolve)
+signature = (seed, trials, horizon, n_agents, safety, evolve, allocation_mode, budget)
 if st.session_state.get("signature") != signature or "lab" not in st.session_state:
-    st.session_state.lab = Tournament(config, num_agents=n_agents, evolve=evolve)
+    st.session_state.lab = Tournament(config, num_agents=n_agents, evolve=evolve,
+                                      allocation_mode=allocation_mode,
+                                      simulation_budget=budget if allocation_mode == "adaptive" else None)
     st.session_state.signature = signature
     st.session_state.transcript = [{"role": "assistant", "content":
         "SIL ready. /run [n] · /agents · /inspect N · /history · /explain · /help"}]
@@ -71,6 +81,10 @@ if command:
     st.rerun()
 if lab.history:
     st.subheader("Current experimental results")
+    latest = lab.history[-1]
+    st.caption(f"Allocation: {latest['allocation_mode']} · Last round action-rollouts: "
+               f"{latest['total_action_rollouts']:,} · "
+               "Adaptive decision-gap stopping is heuristic, not a safety certificate.")
     st.dataframe(lab.leaderboard(), use_container_width=True, hide_index=True)
     if show_chart:
         import plotly.graph_objects as go
