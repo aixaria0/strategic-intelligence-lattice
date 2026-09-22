@@ -67,7 +67,7 @@ def main():
     parser.add_argument("--budget", type=int, help="action-rollout budget for adaptive mode; default=fixed cap")
     parser.add_argument("--scenario", type=int, default=0,
                         help="query-lab context id")
-    parser.add_argument("--method", choices=["fixed", "uniform", "random", "adaptive", "hybrid"],
+    parser.add_argument("--method", choices=["fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward"],
                         default="adaptive", help="query-lab allocation method")
     parser.add_argument("--risk-threshold", type=float, default=0.75,
                         help="query-lab minimum safety probability under each model")
