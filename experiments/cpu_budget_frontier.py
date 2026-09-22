@@ -2,7 +2,7 @@
 
 Crucial honesty: equal simulated query counts are not equal CPU time.
 Calibrate an affordable plan budget using separate context seeds and
-process_time() on the same runner as a uniform baseline. If even the
+process_time() on the same runner as a BULK uniform baseline. If even the
 minimum pilot cannot meet the uniform CPU budget, declare NO CPU-matched
 candidate. Do not re-label a slower method as efficient.
 
@@ -44,7 +44,7 @@ def evaluate_slice(seed, n, budget, maximum, repeats):
             case = context(seed, identifier, family, threshold)
             base_cfg = QueryConfig(maximum=maximum, budget=budget,
                                    threshold=threshold, seed=seed)
-            base_cpu, base = measure(case, base_cfg, "uniform", repeats)
+            base_cpu, base = measure(case, base_cfg, "uniform_bulk", repeats)
             variants = {}
             for method in METHODS:
                 for size in CANDIDATES:
@@ -84,7 +84,7 @@ def summarize(records, chosen):
 
 
 def study(calibration=8, holdout=12, budget=576, maximum=128,
-          repeats=3, calibration_seed=202611, holdout_seed=202612):
+          repeats=3, calibration_seed=202613, holdout_seed=202614):
     if calibration < 2 or holdout < 2 or not 1 <= repeats <= 10:
         raise ValueError("invalid sample settings")
     training = evaluate_slice(calibration_seed, calibration, budget, maximum, repeats)
@@ -102,7 +102,7 @@ def study(calibration=8, holdout=12, budget=576, maximum=128,
         choices[method] = max(eligible) if eligible else None
     # Independently seeded holdout; budget selection MUST NOT use its outcomes.
     heldout = evaluate_slice(holdout_seed, holdout, budget, maximum, repeats)
-    holdout_results = {"uniform": summarize(heldout, "baseline")}
+    holdout_results = {"uniform_bulk": summarize(heldout, "baseline")}
     for method, size in choices.items():
         if size is None:
             holdout_results[method] = {
@@ -120,7 +120,7 @@ def study(calibration=8, holdout=12, budget=576, maximum=128,
         "baseline_budget": budget, "per_cell_maximum": maximum,
         "timing_repetitions": repeats,
         "calibration_seed": calibration_seed, "holdout_seed": holdout_seed,
-        "calibration": {"uniform": baseline, "candidate_budgets": calibration_summary,
+        "calibration": {"uniform_bulk": baseline, "candidate_budgets": calibration_summary,
                         "chosen_budgets": choices},
         "holdout": holdout_results,
         "limitations": [
