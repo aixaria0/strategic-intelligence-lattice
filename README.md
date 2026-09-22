@@ -1,6 +1,6 @@
 # Strategic Intelligence Lattice (SIL)
 
-A reproducible, human-directed **synthetic** multi-agent research simulation platform, plus a preservation archive of **every major concept, rejected prototype and unproved mathematical claim** from the design discussion.
+A reproducible, human-directed **synthetic** multi-agent research simulation platform with **Adaptive Computation Allocation (ACA)**, plus a preservation archive of **every major concept, rejected prototype and unproved mathematical claim** from the design discussion.
 
 ## Start here
 
@@ -14,6 +14,13 @@ Python 3.10+:
     python -m pytest -q
     sil run --rounds 10 --trials 128 --seed 2026 --output audit.json
     sil chat
+
+ACA v0.2 (optional, fixed mode remains the baseline):
+
+    sil run --rounds 3 --trials 128 --allocation adaptive --budget 1152 --seed 2026 --output adaptive.json
+    python experiments/aca_benchmark.py --seeds 12 --trials 128 --holdout 512 --output aca-results.json
+
+ACA samples all actions with shared shocks inside each selected opponent model, then allocates the next batch to the model with the largest heuristic decision-uncertainty/risk-boundary priority. See docs/ADAPTIVE_COMPUTATION.md. Sample-saving and wall-clock improvement are **empirical questions**, not guarantees.
 
 Terminal commands: /help, /run 3, /agents, /inspect 1, /history, /reset, /quit. All actions are simulated. UI:
 
@@ -33,6 +40,8 @@ Open http://localhost:8501. The LLM is OFF by default; the optional /explain com
 - archive/DESIGN_DECISIONS.md — objective-function alternatives, six cognitive layers, infrastructure variants and efficiency-first decisions.
 - legacy/original_paper_draft.tex — original user-supplied manuscript including its historic claims and illustrative TikZ figures; not scientifically endorsed.
 - legacy/snippets/ and legacy/variants/ — preserved historical *selected* code excerpts, including deliberately flawed prototypes.
+- docs/ADAPTIVE_COMPUTATION.md — adaptive allocator, fixed-budget comparator, assumptions and benchmark protocol.
+- experiments/aca_benchmark.py — independent-holdout exploratory comparison.
 - docs/paper.tex — qualified working research note; docs/RESEARCH.md and ARCHITECTURE.md explain current scope and future falsification tests.
 - src/sil/, app.py, tests/, .github/workflows/ci.yml — operational synthetic v0.1 engine, terminal, optional Streamlit, tests and CI.
 
