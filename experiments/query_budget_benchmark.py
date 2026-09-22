@@ -50,6 +50,17 @@ def run(seeds=48, budget=720, maximum=256, seed=2026):
             "unsafe_choice_count": int(sum(not x["truly_safe"] for x in values)),
             "certificate_count": int(sum(x["certificate"] for x in values)),
             "fallback_count": int(sum(x["action"] == 0 for x in values)),
+            "exploratory_oracle_agreement": float(np.mean(
+                [x["exploratory_oracle_agreement"] for x in values])),
+            "exploratory_unsafe_count": int(sum(
+                not x["exploratory_truly_safe"] for x in values)),
+            "exploratory_fallback_count": int(sum(
+                x["exploratory_action"] == 0 for x in values)),
+            "exploratory_regret_given_safe": (
+                float(np.mean([x["exploratory_regret_if_safe"] for x in values
+                               if x["exploratory_regret_if_safe"] is not None]))
+                if any(x["exploratory_regret_if_safe"] is not None for x in values)
+                else None),
         }
     return {
         "domain": "synthetic crossed-payoff Bernoulli models only",
