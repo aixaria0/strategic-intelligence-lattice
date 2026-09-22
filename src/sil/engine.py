@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from .core import ACTIONS, MODEL_STRENGTHS, SIGMA, Config, discrete_entropy, make_shocks, reward, rollout, step
 from .inference import posterior
+from .allocation import Allocation, evaluate_adaptive
 
 @dataclass
 class Agent:
@@ -59,9 +60,20 @@ def evaluate(agent: Agent, cfg: Config, round_id: int) -> list[dict]:
     return results
 
 class Tournament:
-    def __init__(self, cfg: Config, num_agents: int = 3, evolve: bool = True):
+    def __init__(self, cfg: Config, num_agents: int = 3, evolve: bool = True,
+                 allocation_mode: str = "fixed", simulation_budget: int | None = None):
         if not 2 <= num_agents <= 128:
             raise ValueError("num_agents must be 2..128")
+        if allocation_mode not in ("fixed", "adaptive"):
+            raise ValueError("allocation_mode must be fixed or adaptive")
+        self.allocation_mode = allocation_mode
+        self.allocation = None
+        if allocation_mode == "adaptive":
+            cap = len(ACTIONS) * len(MODEL_STRENGTHS) * cfg.trials
+            self.allocation = Allocation(budget=simulation_budget if simulation_budget is not None else cap)
+            self.allocation.validate(cfg)
+        elif simulation_budget is not None:
+            raise ValueError("simulation_budget requires allocation_mode=adaptive")
         self.cfg, self.evolve, self.round = cfg, evolve, 0
         self.agents = [Agent(
             name=f"Agent-{i+1}", alpha=0.15 + i * 0.10, beta=0.02 + i * 0.04,
@@ -79,7 +91,17 @@ class Tournament:
             [self.cfg.seed, round_id, 999])).normal(0, SIGMA)
         rows = []
         for agent in self.agents:
-            candidates = evaluate(agent, self.cfg, round_id)
+            if self.allocation is not None:
+                candidates, simulation = evaluate_adaptive(agent, self.cfg, round_id, self.allocation)
+            else:
+                candidates = evaluate(agent, self.cfg, round_id)
+                simulation = {
+                    "allocation_mode": "fixed",
+                    "rollouts_used": int(len(ACTIONS) * len(MODEL_STRENGTHS) * self.cfg.trials),
+                    "rollouts_cap": int(len(ACTIONS) * len(MODEL_STRENGTHS) * self.cfg.trials),
+                    "model_trials": [int(self.cfg.trials)] * len(MODEL_STRENGTHS),
+                    "stop_reason": "fixed_budget",
+                }
             feasible = [x for x in candidates if x["feasible"]]
             chosen = max(feasible, key=lambda x: x["score"]) if feasible else candidates[0]
             action = chosen["action"]
@@ -98,6 +120,7 @@ class Tournament:
             agent.state = observation
             rows.append({
                 "agent": agent.name, "action": action,
+                "simulation": simulation,
                 "realized_reward": observed_reward, "baseline_reward": baseline_reward,
                 "realized_uplift": uplift, "cumulative_uplift": agent.cumulative_uplift,
                 "cumulative_reward": agent.cumulative_reward,
@@ -115,7 +138,10 @@ class Tournament:
             rng = np.random.default_rng(np.random.SeedSequence([self.cfg.seed, round_id, 31337]))
             explorer.alpha = float(np.clip(leader.alpha + rng.normal(0, 0.05), 0, 1.5))
             explorer.beta = float(np.clip(leader.beta + rng.normal(0, 0.03), 0, 1.0))
-        record = {"round": round_id, "synthetic_true_model": hidden_model_id, "agents": rows}
+        record = {"round": round_id, "synthetic_true_model": hidden_model_id,
+                  "allocation_mode": self.allocation_mode,
+                  "total_action_rollouts": sum(row["simulation"]["rollouts_used"] for row in rows),
+                  "agents": rows}
         self.history.append(record)
         return record
 
