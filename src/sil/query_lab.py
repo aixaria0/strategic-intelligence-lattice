@@ -398,6 +398,9 @@ def allocate(scenario, cfg, method):
             })
     result = dict(method=method, scenario=scenario.identifier,
                 budget=cap, used=used, counts=counts.tolist(),
+                sampled_reward_successes=reward_sum.tolist(),
+                sampled_safety_successes=safe_sum.tolist(),
+                actual_bernoulli_draws=2 * used,
                 action=a, oracle=scenario.oracle_action,
                 oracle_value=float(value[scenario.oracle_action]),
                 selected_true_value=float(value[a]),
