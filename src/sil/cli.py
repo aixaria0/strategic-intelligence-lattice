@@ -67,12 +67,14 @@ def main():
     parser.add_argument("--budget", type=int, help="action-rollout budget for adaptive mode; default=fixed cap")
     parser.add_argument("--scenario", type=int, default=0,
                         help="query-lab context id")
-    parser.add_argument("--method", choices=["fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward"],
+    parser.add_argument("--method", choices=["fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor"],
                         default="uniform", help="query-lab policy (uniform evidence-based baseline; ACA/EVSI experimental)")
     parser.add_argument("--risk-threshold", type=float, default=0.75,
                         help="query-lab minimum safety probability under each model")
     parser.add_argument("--delta", type=float, default=0.05,
                         help="query-lab familywise failure budget")
+    parser.add_argument("--compute-price", type=float, default=0.0,
+                        help="explicit reward-unit price per query for opt-in c_voc_governor")
     parser.add_argument("--output", type=Path, help="JSON audit snapshot path")
     args = parser.parse_args()
     if args.mode == "query-lab":
@@ -80,7 +82,7 @@ def main():
         query_cfg = QueryConfig(
             budget=args.budget if args.budget is not None else 9 * args.trials,
             maximum=args.trials, seed=args.seed, threshold=args.risk_threshold,
-            delta=args.delta,
+            delta=args.delta, compute_price=args.compute_price,
         )
         scenario = make_scenario(args.seed, args.scenario, query_cfg.threshold)
         result = allocate(scenario, query_cfg, args.method)
