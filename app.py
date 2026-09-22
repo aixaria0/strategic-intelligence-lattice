@@ -64,8 +64,10 @@ if command:
             scenario_id = int(parts[1]) if len(parts) > 1 else 0
             query_budget = int(parts[2]) if len(parts) > 2 else 9 * trials
             query_method = parts[3].lower() if len(parts) > 3 else "uniform"
+            query_price = float(parts[4]) if len(parts) > 4 else 0.0
             qcfg = QueryConfig(maximum=trials, budget=query_budget,
-                               threshold=safety, seed=int(seed))
+                               threshold=safety, seed=int(seed),
+                               compute_price=query_price)
             synthetic_context = make_scenario(qcfg.seed, scenario_id, qcfg.threshold)
             query_result = allocate(synthetic_context, qcfg, query_method)
             output = ("QUERY LAB — SYNTHETIC RESEARCH ONLY. Exploratory action "
@@ -83,7 +85,7 @@ if command:
             output = explain({"round": lab.round, "board": lab.leaderboard(),
                               "most_recent": lab.history[-1] if lab.history else None})
         elif verb == "help":
-            output = "/run [n] /query [scenario] [budget] [method] /agents /inspect N /history /explain /help — synthetic research only."
+            output = "/run [n] /query [scenario] [budget] [method] [compute_price] /agents /inspect N /history /explain /help — synthetic research only."
         else:
             output = "Unknown command. Use /help."
     except (ValueError, IndexError, TypeError) as exc:
