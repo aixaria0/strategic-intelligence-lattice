@@ -17,3 +17,12 @@ jobs:
       - run: python -m compileall -q src app.py
       - run: python -m pytest -q
       - run: sil run --rounds 2 --trials 32 --output /tmp/sil-audit.json
+      - run: sil run --rounds 2 --trials 32 --allocation adaptive --budget 288 --output /tmp/sil-adaptive-audit.json
+      - run: python experiments/aca_benchmark.py --seeds 2 --trials 32 --holdout 64 --output /tmp/sil-aca-benchmark.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sil-exploratory-${{ matrix.python-version }}
+          path: |
+            /tmp/sil-adaptive-audit.json
+            /tmp/sil-aca-benchmark.json
+
