@@ -25,8 +25,19 @@ Let $L:S\to[0,\infty)$ and suppose a policy and a transition kernel satisfy, for
 Take total expectations in the assumed drift inequality and iterate the resulting linear recurrence.
 \end{proof}
 The proposition bounds expected $L$; it proves neither almost-sure convergence to a specific favorable basin nor that entropy reduction implies its premise. Establishing the premise for the implemented controller is future work.
+\section{Budget-aware Monte Carlo allocation}
+The fixed baseline samples every action-model pair $N$ times using common random shocks within each model. The optional Adaptive Computation Allocation (ACA) heuristic starts with a nonzero pilot for every model, evaluates all actions using the same shocks in a selected model, and allocates further batches to models with high posterior-weighted estimated uncertainty in the top-two action gap or proximity to the empirical safety threshold. It may stop before the fixed budget when a heuristic gap exceeds an uncertainty allowance and safety frequencies are away from the chosen empirical threshold. The gap criterion is \emph{not} a confidence sequence or a formal safe best-arm identification rule. In particular, finite-bin entropy estimation error, model misspecification and quantile estimation error are not rigorously covered.
+
+A more principled target for future work is expected value of sample information divided by query cost:
+\begin{equation}
+\frac{\mathbb E[\min_a \mathbb E(L_a\mid D)]-
+\mathbb E_{Y_q\mid D}[\min_a\mathbb E(L_a\mid D,Y_q)]}
+{\mathrm{Cost}(q)}.
+\end{equation}
+ACA does not yet compute this nested expectation; it substitutes a transparent low-cost ranking proxy. Simulated action-rollout count and wall-clock time are distinct measures: reanalyzing partial samples can make an adaptive implementation slower even when it simulates fewer paths.
+
 \section{Evaluation protocol}
 Report matched-seed baseline uplift, constraint violations, posterior calibration, confidence intervals across independent seeds, simulator calls and CPU time. Compare against random feasible actions, action zero, an oracle synthetic-model policy and ablations of downside/entropy penalties. Real-domain experiments must be separately validated.
 \section{Limitations and research questions}
-The toy model has three fixed opponent hypotheses, finite actions, boundary-dependent likelihood approximation, heuristic safety gate and empirical finite-bin entropy. Unknown strategies and unmodeled constraints can invalidate beliefs. Adaptive computation allocation and a true multi-domain ontology remain proposed.
+The toy model has three fixed opponent hypotheses, finite actions, boundary-dependent likelihood approximation, heuristic safety gate and empirical finite-bin entropy. Unknown strategies and unmodeled constraints can invalidate beliefs. Adaptive model-level computation allocation is implemented as an experimental heuristic, not a proven optimal value-of-information method; an exact expected-value-of-information scheduler, calibrated stopping certificates, MCTS for branching decision processes and a true multi-domain ontology remain proposed.
 \end{document}
