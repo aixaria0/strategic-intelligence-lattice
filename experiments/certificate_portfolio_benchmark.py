@@ -12,7 +12,7 @@ import argparse
 import json
 from dataclasses import replace
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, process_time
 import numpy as np
 from sil.query_lab import QueryConfig, allocate, make_scenario
 
@@ -67,10 +67,13 @@ def benchmark(seeds=8, maximum=128, budget=576, seed=202609, repeats=1):
             outcomes = {}
             for method in METHODS:
                 timings = []
+                cpu_timings = []
                 values = []
                 for repeat in range(repeats):
                     started = perf_counter()
+                    cpu_started = process_time()
                     item = allocate(case, run_cfg, method)
+                    cpu_timings.append(process_time() - cpu_started)
                     timings.append(perf_counter() - started)
                     values.append(item)
                 first = values[0]
@@ -79,7 +82,9 @@ def benchmark(seeds=8, maximum=128, budget=576, seed=202609, repeats=1):
                         if first[k] != other[k]:
                             raise AssertionError(f"nonreproducible seeded output: {method}.{k}")
                 first["median_wall_seconds"] = float(np.median(timings))
+                first["median_cpu_seconds"] = float(np.median(cpu_timings))
                 first["wall_seconds_by_repeat"] = timings
+                first["cpu_seconds_by_repeat"] = cpu_timings
                 outcomes[method] = first
             records.append({
                 "family": family, "id": identifier, "oracle": case.oracle_action,
@@ -97,6 +102,7 @@ def benchmark(seeds=8, maximum=128, budget=576, seed=202609, repeats=1):
                 "mean_queries": float(np.mean([x["used"] for x in vals])),
                 "median_wall_seconds": float(np.median([x["median_wall_seconds"] for x in vals])),
                 "mean_wall_seconds": float(np.mean([x["median_wall_seconds"] for x in vals])),
+                "mean_cpu_seconds": float(np.mean([x["median_cpu_seconds"] for x in vals])),
                 "unsafe_certified_count": int(sum(not x["truly_safe"] for x in vals)),
                 "portfolio_count": int(sum(len(x.get("portfolios", [])) for x in vals)),
                 "mean_planning_seconds": float(np.mean(
