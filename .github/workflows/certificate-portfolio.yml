@@ -21,9 +21,12 @@ jobs:
         run: python experiments/certificate_portfolio_benchmark.py --seeds 6 --maximum 64 --budget 288 --output portfolio-288.json
       - name: Budget 576 (four families, 8 contexts each)
         run: python experiments/certificate_portfolio_benchmark.py --seeds 8 --maximum 128 --budget 576 --output portfolio-576.json
+      - name: Independent-seed holdout (96 contexts, 3 timing repeats)
+        run: python experiments/certificate_portfolio_benchmark.py --seeds 24 --seed 202610 --maximum 128 --budget 576 --repeats 3 --output portfolio-holdout-96.json
       - uses: actions/upload-artifact@v4
         with:
           name: certificate-portfolio-raw
           path: |
             portfolio-288.json
             portfolio-576.json
+            portfolio-holdout-96.json
