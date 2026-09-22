@@ -1,0 +1,29 @@
+name: Certificate Portfolio Study
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/certificate-portfolio.yml
+      - src/sil/certificate_planner.py
+      - experiments/certificate_portfolio_benchmark.py
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[test]'
+      - run: python -m pytest -q tests/test_certificate_planner.py tests/test_query_lab.py
+      - name: Budget 288 (four families, 6 contexts each)
+        run: python experiments/certificate_portfolio_benchmark.py --seeds 6 --maximum 64 --budget 288 --output portfolio-288.json
+      - name: Budget 576 (four families, 8 contexts each)
+        run: python experiments/certificate_portfolio_benchmark.py --seeds 8 --maximum 128 --budget 576 --output portfolio-576.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: certificate-portfolio-raw
+          path: |
+            portfolio-288.json
+            portfolio-576.json
