@@ -31,14 +31,15 @@ def test_budget_and_sample_cap_and_reproducibility():
         assert max(max(row) for row in result["counts"]) <= cfg.maximum
         assert result["action"] in range(A)
         assert result["truly_safe"]
-        assert result["exploration_is_not_authorized"]
-    assert len(result["safety_information_requirements"]) == 6
-    for item in result["safety_information_requirements"]:
-        assert item["sampled"] <= cfg.maximum
-        if item["plug_in_samples_for_safety_certificate"] is not None:
-            assert item["plug_in_samples_for_safety_certificate"] >= 1 is True
+        assert result["exploration_is_not_authorized"] is True
         assert result["exploratory_action"] in range(A)
-        assert result["exploratory_regret_if_safe"] is None or result["exploratory_regret_if_safe"] >= 0
+        assert (result["exploratory_regret_if_safe"] is None or
+                result["exploratory_regret_if_safe"] >= 0)
+        assert len(result["safety_information_requirements"]) == 6
+        for item in result["safety_information_requirements"]:
+            assert item["sampled"] <= cfg.maximum
+            if item["plug_in_samples_for_safety_certificate"] is not None:
+                assert item["plug_in_samples_for_safety_certificate"] >= 1
     with pytest.raises(ValueError):
         allocate(scenario, cfg, "unknown")
 
