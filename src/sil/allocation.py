@@ -114,10 +114,11 @@ def _priority(model_stats: list[list[dict]], weights: np.ndarray,
 
 def evaluate_adaptive(agent, cfg: Config, round_id: int,
                       allocation: Allocation) -> tuple[list[dict], dict]:
-    """Budget <= fixed all-model rollout budget; reproducible with seed and round.
+    """Allocate batches using O(models x actions) running moments.
 
-    Counts only executed state trajectories (horizon steps) as action-rollouts;
-    entropy/priority computation and RNG draws are separate CPU overhead.
+    Full quantiles and terminal histograms are computed ONCE at the end.
+    Cheap intermediate rankings ignore the entropy term and approximate
+    downside by mean shortfall; the explicit gap allowance is heuristic.
     """
     allocation.validate(cfg)
     num_models, num_actions = len(MODEL_STRENGTHS), len(ACTIONS)
@@ -130,14 +131,16 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         for model_id in range(num_models)
     ]
     model_trials = np.zeros(num_models, dtype=int)
+    reward_sum = np.zeros((num_models, num_actions))
+    reward_sumsq = np.zeros_like(reward_sum)
+    shortfall_sum = np.zeros_like(reward_sum)
+    safe_count = np.zeros_like(reward_sum)
     used = 0
 
     def sample(model_id: int, count: int) -> None:
         nonlocal used
         shocks = generators[model_id].normal(
             0, SIGMA, size=(count, cfg.horizon, 2))
-        # Vectorize ACTIONS too: a single horizon loop for the whole
-        # action-by-trial batch, instead of a Python horizon loop per action.
         strength = float(MODEL_STRENGTHS[model_id])
         drift = np.stack((
             0.015 + 0.080 * ACTIONS - 0.052 * strength,
@@ -148,6 +151,11 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         for t in range(cfg.horizon):
             states = np.clip(states + drift + shocks[None, :, t, :], 0.0, 1.0)
             minimum = np.minimum(minimum, states[:, :, 1])
+        values = states[:, :, 0] + 0.35 * states[:, :, 1] - 0.040 * ACTIONS[:, None]
+        reward_sum[model_id] += values.sum(axis=1)
+        reward_sumsq[model_id] += (values * values).sum(axis=1)
+        shortfall_sum[model_id] += np.maximum(0.0, 0.65 - values).sum(axis=1)
+        safe_count[model_id] += (minimum >= 0.15).sum(axis=1)
         for aid in range(num_actions):
             samples[model_id][aid].append((states[aid].copy(), minimum[aid].copy()))
         model_trials[model_id] += count
@@ -156,41 +164,42 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
     for model_id in range(num_models):
         sample(model_id, allocation.pilot)
     stop_reason = "budget_exhausted"
-    last_gap, last_width = None, None
-    cached_stats: list[list[dict] | None] = [None] * num_models
-    dirty_model: int | None = None
+    last_gap: float | None = None
+    last_width: float | None = None
+
     while True:
-        rows, stats = _score_rows(samples, agent.prior, agent.alpha, agent.beta,
-                                  cfg.min_safe_probability,
-                                  cached=cached_stats, dirty_model=dirty_model)
-        dirty_model = None
-        feasible = [aid for aid, row in enumerate(rows) if row["feasible"]]
-        ordered = sorted(feasible if feasible else list(range(num_actions)),
-                         key=lambda aid: rows[aid]["score"], reverse=True)
-        leader, runner = ordered[0], ordered[1] if len(ordered) > 1 else ordered[0]
-        gap = float(rows[leader]["score"] - rows[runner]["score"])
-        weighted_variance = sum(
-            (float(agent.prior[m]) ** 2) *
-            (stats[m][leader]["utility_standard_deviation"] ** 2 +
-             stats[m][runner]["utility_standard_deviation"] ** 2) /
-            int(model_trials[m])
-            for m in range(num_models)
-        )
+        counts = model_trials[:, None].astype(float)
+        means = reward_sum / counts
+        shortfalls = shortfall_sum / counts
+        safety = safe_count / counts
+        # Nonnegative empirical standard deviations without expensive
+        # repeated full-path concatenation and histogram computation.
+        variance = np.maximum(0.0, (reward_sumsq -
+                     (reward_sum * reward_sum) / counts) /
+                     np.maximum(counts - 1.0, 1.0))
+        quick_scores = agent.prior @ (means - agent.alpha * shortfalls)
+        feasible = [aid for aid in range(num_actions)
+                    if bool(np.all(safety[:, aid] >= cfg.min_safe_probability))]
+        order = sorted(feasible if feasible else list(range(num_actions)),
+                       key=lambda aid: float(quick_scores[aid]), reverse=True)
+        leader, runner = order[0], order[1] if len(order) > 1 else order[0]
+        gap = float(quick_scores[leader] - quick_scores[runner])
+        weighted_variance = float(np.sum(
+            agent.prior ** 2 * (variance[:, leader] + variance[:, runner])
+            / model_trials))
         mean_width = allocation.stop_gap * np.sqrt(max(0.0, weighted_variance))
-        # Explicit unestimated entropy and downside terms: this is still
-        # a stopping *heuristic*, not a statistical confidence interval.
+        # Additional allowance acknowledges the approximate quick score
+        # and entropy/quantile uncertainty; NOT a calibrated CI.
         entropy_allowance = 0.20 * max(0.0, agent.beta)
         downside_allowance = (max(0.0, agent.alpha) * 0.69 /
                               np.sqrt(int(min(model_trials))))
         effective_width = float(mean_width + entropy_allowance + downside_allowance)
         last_gap, last_width = gap, effective_width
 
-        stable_safety = all(
-            abs(model_row["safe"] - cfg.min_safe_probability) >
-            2.0 * np.sqrt((model_row["safe"] * (1-model_row["safe"]) + 0.01) /
-                          model_row["n"])
-            for model_rows in stats for model_row in model_rows
-        )
+        safety_radius = 2.0 * np.sqrt(
+            (safety * (1.0 - safety) + 0.01) / counts)
+        stable_safety = bool(np.all(
+            np.abs(safety - cfg.min_safe_probability) > safety_radius))
         if (len(feasible) >= 2 and min(model_trials) >= max(32, allocation.pilot)
                 and stable_safety and gap > effective_width):
             stop_reason = "decision_gap_heuristic"
@@ -199,8 +208,15 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         remaining = allocation.budget - used
         if remaining < num_actions or not np.any(model_trials < cfg.trials):
             break
-        priorities = _priority(stats, agent.prior, leader, runner,
-                               cfg.min_safe_probability)
+        # Posterior-weighted ranking uncertainty, plus sensitivity to
+        # empirical safety boundary, amortized by samples already spent.
+        gap_se = np.sqrt((variance[:, leader] + variance[:, runner])
+                         / model_trials)
+        near_constraint = np.max(
+            1.0 / (1.0 + 8.0 * np.abs(safety - cfg.min_safe_probability)),
+            axis=1)
+        priorities = (agent.prior * (gap_se + 0.25 / np.sqrt(model_trials))
+                      + 0.025 * near_constraint / np.sqrt(model_trials))
         priorities[model_trials >= cfg.trials] = -np.inf
         selected_model = int(np.argmax(priorities))
         count = min(allocation.batch,
@@ -209,10 +225,12 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         if count < 1:
             break
         sample(selected_model, count)
-        dirty_model = selected_model
 
-    # rows already describe the final sample collection: no redundant histogram pass.
-    return rows, {
+    # Exact original empirical definition is used for FINAL scores,
+    # independent of the cheaper diagnostic statistics above.
+    final_rows, _ = _score_rows(samples, agent.prior, agent.alpha,
+                                agent.beta, cfg.min_safe_probability)
+    return final_rows, {
         "allocation_mode": "adaptive",
         "rollouts_used": int(used),
         "rollouts_cap": int(num_models * num_actions * cfg.trials),
@@ -221,5 +239,6 @@ def evaluate_adaptive(agent, cfg: Config, round_id: int,
         "stop_reason": stop_reason,
         "decision_gap": last_gap,
         "decision_uncertainty_proxy": last_width,
+        "ranking_proxy": "running_reward_minus_mean_shortfall; final original score recomputed",
         "heuristic_not_certificate": True,
     }
