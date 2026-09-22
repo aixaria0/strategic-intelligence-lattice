@@ -66,3 +66,21 @@ def test_low_budget_sprint_no_fabricated_safety():
     assert output["action"] in output["certified_actions"]
     assert output["truly_safe"]
     assert output["exploration_is_not_authorized"]
+
+
+def test_bulk_uniform_is_identical_to_small_batch_uniform_not_just_cheaper():
+    for budget in (288, 576, 577):
+        cfg = QueryConfig(seed=913, budget=budget, maximum=128)
+        case = make_scenario(cfg.seed, 17, cfg.threshold)
+        bulk = allocate(case, cfg, "uniform_bulk")
+        small = allocate(case, cfg, "uniform")
+        # The nondivisible 577 budget may leave different last-cell locations.
+        # At divisible 9-cell budgets, counts and every shared RNG prefix
+        # MUST be identical; one algorithm cannot get easier random outcomes.
+        if budget % 9 == 0:
+            for key in ("counts", "sampled_reward_successes",
+                        "sampled_safety_successes", "action", "truly_safe",
+                        "regret", "oracle"):
+                assert bulk[key] == small[key]
+        assert bulk["used"] == small["used"] == budget
+        assert bulk["action"] in bulk["certified_actions"]
