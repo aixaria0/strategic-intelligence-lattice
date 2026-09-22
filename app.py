@@ -5,6 +5,7 @@ import streamlit as st
 from sil.core import Config
 from sil.engine import Tournament
 from sil.reframer import explain
+from sil.query_lab import QueryConfig, make_scenario, allocate
 
 st.set_page_config(page_title="SIL / Research Terminal", layout="wide")
 st.markdown("""<style>
@@ -44,7 +45,7 @@ if st.session_state.get("signature") != signature or "lab" not in st.session_sta
                                       simulation_budget=budget if allocation_mode == "adaptive" else None)
     st.session_state.signature = signature
     st.session_state.transcript = [{"role": "assistant", "content":
-        "SIL ready. /run [n] · /agents · /inspect N · /history · /explain · /help"}]
+        "SIL ready. /run [n] · /query [scenario] [budget] [method] · /agents · /inspect N · /history · /explain · /help"}]
 lab = st.session_state.lab
 for message in st.session_state.transcript[-18:]:
     with st.chat_message(message["role"]):
@@ -59,6 +60,16 @@ if command:
             count = int(parts[1]) if len(parts) > 1 else 1
             lab.run(count)
             output = f"Completed round {lab.round}.\n" + json.dumps(lab.leaderboard(), indent=2)
+        elif verb == "query":
+            scenario_id = int(parts[1]) if len(parts) > 1 else 0
+            query_budget = int(parts[2]) if len(parts) > 2 else 9 * trials
+            query_method = parts[3].lower() if len(parts) > 3 else "adaptive"
+            qcfg = QueryConfig(maximum=trials, budget=query_budget,
+                               threshold=safety, seed=int(seed))
+            synthetic_context = make_scenario(qcfg.seed, scenario_id, qcfg.threshold)
+            query_result = allocate(synthetic_context, qcfg, query_method)
+            output = ("QUERY LAB — SYNTHETIC RESEARCH ONLY. Exploratory action "
+                      "is NOT safety-approved.\n" + json.dumps(query_result, indent=2))
         elif verb == "agents":
             output = json.dumps(lab.leaderboard(), indent=2)
         elif verb == "inspect":
@@ -72,10 +83,10 @@ if command:
             output = explain({"round": lab.round, "board": lab.leaderboard(),
                               "most_recent": lab.history[-1] if lab.history else None})
         elif verb == "help":
-            output = "/run [n] /agents /inspect N /history /explain /help — synthetic research only."
+            output = "/run [n] /query [scenario] [budget] [method] /agents /inspect N /history /explain /help — synthetic research only."
         else:
             output = "Unknown command. Use /help."
-    except (ValueError, IndexError) as exc:
+    except (ValueError, IndexError, TypeError) as exc:
         output = f"Invalid argument: {exc}"
     st.session_state.transcript.append({"role": "assistant", "content": output})
     st.rerun()
