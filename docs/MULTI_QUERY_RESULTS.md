@@ -43,3 +43,23 @@ These are finite-seed, tiny-millisecond timing measurements on shared GitHub run
 ## Engineering conclusion
 
 The project has now demonstrated an actual task-specific *decision-quality* gain from planning a multi-model portfolio of queries rather than assigning samples uniformly. It has NOT demonstrated end-to-end compute efficiency or general superiority. Next falsifiable requirements are calibrated multi-batch cost-aware stopping, a budget curve at equal measured CPU, posterior misspecification and correlated reward/safety stress, and any low-overhead analytic targeting alternative that survives comparison with uniform. Retain every negative result alongside the positive certificate-ready results.
+
+
+## Experiment D: *genuine lazy sampling* and CPU accounting (same 96-context holdout)
+
+The earlier v0.6 experiments pre-generated every potential reward/safety Bernoulli draw in every cell before the query allocator ran, even when the allocator did not consume them. This meant the reported number of queried draws was a LOGICAL budget but random-data generation did not shrink with it. The later refactor introduced separate deterministic per-cell/per-channel RNG streams and draws only the outcomes actually queried; each policy receives the same stream prefixes even with different query order and batch sizes. Test tests/test_query_lab.py explicitly verifies every reported sampled count against the corresponding full potential-outcome prefix.
+
+The seeded potential outcome GENERATOR consequently changed between v0.6 pre-lazy and post-lazy; do not combine their per-scenario outcomes or claim numbers from distinct PR revisions are bit-for-bit identical. A complete rerun with independent seed 202610 and 96 predeclared contexts appears in [the lazy-sampling workflow with JSON artifacts](https://github.com/aixaria0/strategic-intelligence-lattice/actions/runs/35795209501).
+
+| Policy | Mean queried cell samples | Analytic feasible-oracle match | Mean regret | Mean measured process CPU |
+|---|---:|---:|---:|---:|
+| Fixed full-grid, larger budget | 1152 | 48/96 | 0.07234 | 0.00544 s |
+| Uniform, equal budget | 576 | 31/96 | 0.10404 | 0.00472 s |
+| Legacy ACA, equal budget | 576 | 18/96 | 0.13309 | 0.00579 s |
+| One-batch C-VoC, equal budget | 576 | 22/96 | 0.12456 | 0.00895 s |
+| Multi-query predictive portfolio, equal budget | 576 | 47/96 | 0.07313 | 0.01615 s |
+| Plug-in certificate targeted, equal budget | 576 | 31/96 | 0.10404 | 0.00887 s |
+
+None of the 96 finite *certified* choices was analytically unsafe under these declared modeled probabilities. The predictive portfolio improved decision quality at equal actually GENERATED cell samples but took roughly 3.4x uniform mean process CPU on this shared runner. The purported cheap plug-in alternative did not beat uniform decision accuracy and was still slower; its negative result is preserved rather than hidden.
+
+A distinct experiments/cpu_budget_frontier.py workflow calibrates feasible portfolio query budgets against uniform by *measured process CPU* on separate calibration seed contexts, then evaluates the chosen budget on a disjoint holdout. If no portfolio budget at or above the mandatory pilot fits, it reports NO_CPU_MATCH instead of falsely claiming equal-cost superiority. Tiny millisecond timings and runner variance mean the CPU-frontier result is a descriptive engineering test, not a global compute-efficiency theorem.
