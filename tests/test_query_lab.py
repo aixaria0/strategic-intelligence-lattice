@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 from sil.query_lab import (
-    QueryConfig, make_scenario, streams, assess, allocate, CELLS, K, A
+    QueryConfig, make_scenario, streams, assess, allocate, kl_confidence_interval, CELLS, K, A
 )
 
 
@@ -87,3 +87,18 @@ def test_exploratory_signal_is_reported_separately_from_certified_selection():
     assert result["exploration_is_not_authorized"]
     if not result["exploratory_truly_safe"]:
         assert result["exploratory_regret_if_safe"] is None
+
+
+def test_time_uniform_kl_intervals_are_conservative_at_known_extremes():
+    cfg = QueryConfig(maximum=256, budget=1152, threshold=0.75)
+    counts = np.full((K, A), 256, dtype=int)
+    successes = counts.copy()
+    lower, upper = kl_confidence_interval(successes, counts, cfg)
+    assert np.all(lower <= 1.0)
+    assert np.all(upper >= 1.0 - 1e-10)
+    assert np.all(lower > 0.90)
+    zero, high = kl_confidence_interval(np.zeros_like(counts), counts, cfg)
+    assert np.all(zero <= 1e-10)
+    assert np.all(high < 0.10)
+    assert np.all(np.isfinite(lower))
+    assert np.all(np.isfinite(high))
