@@ -1,7 +1,7 @@
 """Falsification tests for finite multi-model/multi-batch certification plans."""
 import numpy as np
 import pytest
-from sil.certificate_planner import certification_forecast, plan_certificate_portfolio
+from sil.certificate_planner import certification_forecast, plan_certificate_portfolio, plan_certificate_targeted
 from sil.voc import constrained_batch_voc
 from sil.query_lab import QueryConfig, make_scenario, allocate
 
@@ -82,3 +82,32 @@ def test_infeasible_portfolio_does_not_claim_global_zero_information():
     plan = plan_certificate_portfolio(
         reward, safe, n, np.ones(3) / 3, .75, .05, 128, 16, 16)
     assert plan is None
+
+
+def test_fast_targeted_plan_covers_missing_model_cells_without_certification_claim():
+    n = np.full((3, 3), 16, dtype=int)
+    reward = np.full((3, 3), 8, dtype=int)
+    reward[:, 1] = 14
+    safe = np.zeros((3, 3), dtype=int)
+    safe[:, 0] = safe[:, 1] = 16
+    plan = plan_certificate_targeted(
+        reward, safe, n, np.ones(3) / 3, .75, .05, 128, 16, 288)
+    assert plan is not None
+    assert {q["model"] for q in plan["queries"]} == {0, 1, 2}
+    assert plan["joint_certificate_forecast"] is None
+    assert 0 < plan["total_planned_draws"] <= 288
+    assert plan["not_a_safety_certificate"]
+
+
+def test_fast_targeting_repeatable_and_final_safety_rechecked():
+    cfg = QueryConfig(budget=576, maximum=128, seed=667)
+    scenario = make_scenario(cfg.seed, 7, cfg.threshold)
+    left = allocate(scenario, cfg, "certificate_targeted")
+    right = allocate(scenario, cfg, "certificate_targeted")
+    for timing_key in ("planning_seconds", "sampling_seconds"):
+        left.pop(timing_key)
+        right.pop(timing_key)
+    assert left == right
+    assert left["used"] <= cfg.budget
+    assert left["truly_safe"]
+    assert left["action"] in left["certified_actions"]
