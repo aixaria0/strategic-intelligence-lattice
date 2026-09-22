@@ -11,7 +11,7 @@ from time import perf_counter
 import numpy as np
 from .evsi import reward_batch_evsi
 from .voc import constrained_batch_voc
-from .certificate_planner import plan_certificate_portfolio
+from .certificate_planner import plan_certificate_portfolio, plan_certificate_targeted
 
 K, A = 3, 3
 CELLS = K * A
@@ -183,7 +183,7 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio", "certificate_targeted"):
         raise ValueError("unknown method")
     reward_stream, safe_stream = streams(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
@@ -259,7 +259,7 @@ def allocate(scenario, cfg, method):
                 # information that one-step predictive lookahead misses.
                 candidates = -counts.astype(float)
             planning_seconds += perf_counter() - started
-        elif method == "certificate_portfolio":
+        elif method in ("certificate_portfolio", "certificate_targeted"):
             if not portfolio_queue and fallback_draws_left == 0:
                 started = perf_counter()
                 checked = assess(reward_sum, safe_sum, counts, scenario, cfg)
@@ -267,7 +267,9 @@ def allocate(scenario, cfg, method):
                     stop = "simultaneous_bound_certificate"
                     planning_seconds += perf_counter() - started
                     break
-                planned = plan_certificate_portfolio(
+                planner = (plan_certificate_portfolio if method == "certificate_portfolio"
+                           else plan_certificate_targeted)
+                planned = planner(
                     reward_sum, safe_sum, counts, np.asarray(scenario.posterior),
                     cfg.threshold, cfg.delta, cfg.maximum, cfg.batch, cap - used)
                 lookahead_evaluations += 1
@@ -324,16 +326,16 @@ def allocate(scenario, cfg, method):
             break
         m, a = np.unravel_index(idx, candidates.shape)
         n = min(cfg.batch, cfg.maximum - int(counts[m, a]), cap - used)
-        if method == "certificate_portfolio" and portfolio_queue:
+        if method in ("certificate_portfolio", "certificate_targeted") and portfolio_queue:
             n = min(n, portfolio_queue[0]["remaining"])
-        elif method == "certificate_portfolio":
+        elif method in ("certificate_portfolio", "certificate_targeted"):
             n = min(n, fallback_draws_left)
         if n <= 0:
             stop = "per_cell_limit"
             break
         sample(m, a, int(n))
         used += int(n)
-        if method == "certificate_portfolio":
+        if method in ("certificate_portfolio", "certificate_targeted"):
             if portfolio_queue:
                 portfolio_queue[0]["remaining"] -= int(n)
                 if portfolio_queue[0]["remaining"] <= 0:
@@ -396,13 +398,14 @@ def allocate(scenario, cfg, method):
                 possibly_safe_actions=final["possible"],
                 posterior=list(scenario.posterior))
 
-    if method == "certificate_portfolio":
+    if method in ("certificate_portfolio", "certificate_targeted"):
         result.update(
             planning_seconds=planning_seconds,
             sampling_seconds=sampling_seconds,
             portfolio_evaluations=lookahead_evaluations,
             portfolios=portfolio_history,
             fallback_after_no_viable_plan=any(
+                plan["joint_certificate_forecast"] is not None and
                 plan["joint_certificate_forecast"] < 1 for plan in portfolio_history
             ) if portfolio_history else True,
             not_an_optimality_certificate=True,
