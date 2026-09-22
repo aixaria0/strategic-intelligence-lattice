@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/aca-benchmark.yml
       - experiments/aca_benchmark.py
+      - experiments/aca_stress.py
       - src/sil/allocation.py
 jobs:
   budget-curve:
@@ -20,9 +21,12 @@ jobs:
         run: python experiments/aca_benchmark.py --seeds 12 --trials 128 --holdout 512 --output aca-experiment-128.json
       - name: Budget 256 trials, 12 independent scenarios
         run: python experiments/aca_benchmark.py --seeds 12 --trials 256 --holdout 512 --output aca-experiment-256.json
+      - name: Harder heterogeneous-state evaluation
+        run: python experiments/aca_stress.py --seeds 24 --trials 128 --holdout 1024 --output aca-stress.json
       - uses: actions/upload-artifact@v4
         with:
           name: aca-budget-experiment
           path: |
             aca-experiment-128.json
             aca-experiment-256.json
+            aca-stress.json
