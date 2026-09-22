@@ -1,6 +1,6 @@
 # Strategic Intelligence Lattice (SIL)
 
-A reproducible, human-directed **synthetic** multi-agent research simulation platform with **Adaptive Computation Allocation (ACA)**, plus a preservation archive of **every major concept, rejected prototype and unproved mathematical claim** from the design discussion.
+A reproducible, human-directed **synthetic** multi-agent research simulation platform with **Adaptive Computation Allocation (ACA)** and a separate, nontrivial query-level decision laboratory, plus a preservation archive of **every major concept, rejected prototype and unproved mathematical claim** from the design discussion.
 
 ## Start here
 
@@ -44,6 +44,16 @@ Open http://localhost:8501. The LLM is OFF by default; the optional /explain com
 - experiments/aca_benchmark.py — independent-holdout exploratory comparison.
 - docs/paper.tex — qualified working research note; docs/RESEARCH.md and ARCHITECTURE.md explain current scope and future falsification tests.
 - src/sil/, app.py, tests/, .github/workflows/ci.yml — operational synthetic v0.1 engine, terminal, optional Streamlit, tests and CI.
+
+## Query Lab v0.3 — equal-budget decision research
+
+The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its five allocation methods are fixed full-grid (cost ceiling), uniform, random, adaptive and hybrid (half uniform / half adaptive). It is NOT a market predictor or a general strategic control system.
+
+    sil query-lab --scenario 2 --trials 256 --budget 720 --method hybrid --risk-threshold 0.75 --output query.json
+    python experiments/query_budget_benchmark.py --seeds 48 --maximum 256 --budget 720 --output query-benchmark.json
+    streamlit run app.py
+
+In the terminal-style UI, type /query 2 720 hybrid after selecting 256 trials and suitable risk threshold in the sidebar. The certified action is the simulated admissible recommendation; the exploratory action is **research-only** and may be unsafe. Read docs/QUERY_LAB.md, docs/SAFETY_INFORMATION_LIMITS.md and docs/QUERY_LAB_RESULTS.md for assumptions, empirical results and failure modes.
 
 ## Scientific status and honesty
 
