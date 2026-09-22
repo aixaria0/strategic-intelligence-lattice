@@ -23,6 +23,8 @@ jobs:
         run: python experiments/query_budget_benchmark.py --seeds 48 --budget 720 --maximum 256 --output query-720.json
       - name: High budget
         run: python experiments/query_budget_benchmark.py --seeds 48 --budget 1152 --maximum 256 --output query-1152.json
+      - name: High-information safety regime (1024 samples/cell)
+        run: python experiments/query_budget_benchmark.py --seeds 48 --budget 4608 --maximum 1024 --output query-4608-1024.json
       - uses: actions/upload-artifact@v4
         with:
           name: query-lab-budget-curves
@@ -30,3 +32,4 @@ jobs:
             query-288.json
             query-720.json
             query-1152.json
+            query-4608-1024.json
