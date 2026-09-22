@@ -329,13 +329,8 @@ def allocate(scenario, cfg, method):
                 "plug_in_samples_for_safety_certificate": projected,
                 "within_per_cell_cap": projected is not None and projected <= cfg.maximum,
             })
-    return dict(method=method, scenario=scenario.identifier,
+    result = dict(method=method, scenario=scenario.identifier,
                 budget=cap, used=used, counts=counts.tolist(),
-                compute_price=cfg.compute_price if method == "c_voc_governor" else None,
-                planning_seconds=planning_seconds,
-                sampling_seconds=sampling_seconds,
-                lookahead_evaluations=lookahead_evaluations,
-                last_information_per_query=last_information_per_query,
                 action=a, oracle=scenario.oracle_action,
                 oracle_value=float(value[scenario.oracle_action]),
                 selected_true_value=float(value[a]),
@@ -354,3 +349,13 @@ def allocate(scenario, cfg, method):
                 certified_actions=final["certified"],
                 possibly_safe_actions=final["possible"],
                 posterior=list(scenario.posterior))
+
+    if method in ("c_voc", "c_voc_governor"):
+        result.update(
+            compute_price=cfg.compute_price if method == "c_voc_governor" else None,
+            planning_seconds=planning_seconds,
+            sampling_seconds=sampling_seconds,
+            lookahead_evaluations=lookahead_evaluations,
+            last_information_per_query=last_information_per_query,
+        )
+    return result
