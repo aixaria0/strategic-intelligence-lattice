@@ -1,0 +1,29 @@
+name: C-VoC Decision Research
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/c-voc.yml
+      - src/sil/voc.py
+      - experiments/voc_benchmark.py
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[test]'
+      - run: python -m pytest -q tests/test_voc.py tests/test_evsi.py tests/test_query_lab.py
+      - name: Balanced smaller-compute comparison
+        run: python experiments/voc_benchmark.py --seeds 12 --maximum 128 --budget 576 --output voc-576.json
+      - name: Balanced larger-compute comparison
+        run: python experiments/voc_benchmark.py --seeds 12 --maximum 256 --budget 1152 --output voc-1152.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c-voc-raw-synthetic-results
+          path: |
+            voc-576.json
+            voc-1152.json
