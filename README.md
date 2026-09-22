@@ -47,7 +47,7 @@ Open http://localhost:8501. The LLM is OFF by default; the optional /explain com
 
 ## Query Lab v0.3 — equal-budget decision research
 
-The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its ten experimental allocation modes are fixed full-grid (cost ceiling), uniform, random, legacy adaptive, hybrid (half uniform / half adaptive), experimental reward-only EVSI, constrained C-VoC, opt-in C-VoC governor, predictive multi-query certificate_portfolio and plug-in certificate_targeted. It is NOT a market predictor or a general strategic control system.
+The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its twelve experimental allocation modes are fixed full-grid (cost ceiling), uniform, random, legacy adaptive, hybrid (half uniform / half adaptive), experimental reward-only EVSI, constrained C-VoC, opt-in C-VoC governor, predictive multi-query certificate_portfolio, plug-in certificate_targeted, certificate_sprint and uniform_bulk. It is NOT a market predictor or a general strategic control system.
 
     sil query-lab --scenario 2 --trials 256 --budget 720 --method hybrid --risk-threshold 0.75 --output query.json
     python experiments/query_budget_benchmark.py --seeds 48 --maximum 256 --budget 720 --output query-benchmark.json
@@ -86,6 +86,16 @@ Crucial computational correction: Query Lab now uses **lazy, independent seeded 
     python experiments/cpu_budget_frontier.py --calibration 8 --holdout 12 --budget 576 --maximum 128 --repeats 3 --output cpu-frontier.json
 
 **Measured result, not a general guarantee:** In 96 independent synthetic contexts, the predictive portfolio matched the analytically feasible oracle in 47/96 cases at the same 576 *actually generated* cell queries, against 31/96 for uniform. However, portfolio took ~3.4x the mean measured CPU. With a separately calibrated equal-CPU budget, the portfolio had to use only its 144-query pilot and matched the oracle in 4/48 holdout contexts, versus uniform's 12/48 at 576. Uniform therefore remains the default. Full context, raw workflow links, mathematical limits and explicit negative findings: docs/MULTI_QUERY_CERTIFICATE_PLANNING.md, docs/MULTI_QUERY_RESULTS.md, docs/CPU_BUDGET_RESULTS.md.
+
+## Certificate Sprint v0.7 — CPU-aware pilot + bulk simulation
+
+The experimental `certificate_sprint` chooses at most one candidate from an all-cell pilot, then collects all modeled regimes' safety/reward evidence for that candidate in BULK. It does NOT forecast future Bayesian certification or bypass the independent time-uniform KL final safety gate. Its control `uniform_bulk` uses the same bulk simulator calls without action targeting, so performance comparisons do not confuse optimized batching with better adaptive computation.
+
+    sil query-lab --scenario 2 --trials 128 --budget 576 --method certificate_sprint --output sprint.json
+    sil query-lab --scenario 2 --trials 128 --budget 576 --method uniform_bulk --output uniform-bulk.json
+    python experiments/cpu_budget_frontier.py --calibration 8 --holdout 12 --budget 576 --maximum 128 --repeats 3 --output cpu-frontier.json
+
+The initial independent 96-case synthetic comparison with the original small-batch uniform was favorable in quality and CPU, but that comparator had a batching disadvantage. Against **bulk-uniform** in a later prospective 96-case test, Sprint matched the analytic feasible oracle in 44/96 contexts vs 28/96 at equal 576 cell queries; mean measured CPU was 0.003184 s vs 0.003094 s. In a separately calibrated 48-context CPU holdout, Sprint matched 18/48 vs 11/48 but used 1.8% more mean CPU; the calibration-CPU match did NOT persist exactly on holdout. The fast allocator remains opt-in. Follow-on validation uses new fixed-seed cohorts in .github/workflows/sprint-v07.yml. See docs/CERTIFICATE_SPRINT_V07.md and docs/CERTIFICATE_SPRINT_RESULTS.md for complete evidence and limitations.
 
 ## Scientific status and honesty
 
