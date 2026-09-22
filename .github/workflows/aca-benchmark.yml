@@ -1,0 +1,28 @@
+name: ACA Budget Benchmark
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/aca-benchmark.yml
+      - experiments/aca_benchmark.py
+      - src/sil/allocation.py
+jobs:
+  budget-curve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e .
+      - name: Budget 128 trials, 12 independent scenarios
+        run: python experiments/aca_benchmark.py --seeds 12 --trials 128 --holdout 512 --output aca-experiment-128.json
+      - name: Budget 256 trials, 12 independent scenarios
+        run: python experiments/aca_benchmark.py --seeds 12 --trials 256 --holdout 512 --output aca-experiment-256.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aca-budget-experiment
+          path: |
+            aca-experiment-128.json
+            aca-experiment-256.json
