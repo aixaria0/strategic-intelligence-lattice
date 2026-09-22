@@ -1,19 +1,47 @@
 # Strategic Intelligence Lattice (SIL)
 
-Research archive and reproducible synthetic strategic simulation framework.
+A reproducible, human-directed **synthetic** multi-agent research simulation platform, plus a preservation archive of **every major concept, rejected prototype and unproved mathematical claim** from the design discussion.
 
-**Preservation is the primary requirement.** Keep all historical concepts, abandoned examples, unproven claims, failed equations and architectural alternatives, alongside corrected runnable code. Never silently rewrite the historical record to make it seem proven.
+## Start here
 
-Read `archive/DEVELOPMENT_TIMELINE.md` (conversation chronology), `archive/FORMAL_CLAIMS.md` (original formulae and epistemic status), `archive/PROTOTYPE_CATALOG.md` (legacy code variants), `archive/DESIGN_DECISIONS.md` (alternative designs), `docs/RESEARCH.md` (current methodological commitments), `docs/paper.tex` (qualified research manuscript) and `src/` (operational baseline when present).
+This repository deliberately separates the **current runnable baseline** from the **historical research archive**. The baseline is not a proven new AI paradigm, market prediction engine, real-world adversarial system, or formal stability certificate.
 
-## Scientific status
+## Run
 
-The original idea that reducing entropy in favorable regions makes strategic victory inevitable has **not been proven** and does not follow generally from entropy reduction. "Quantum Automata" refers to parallel classical hypotheses, not quantum hardware. Historical 3D constant-plane plots are not empirical basins. Past chatbot-supplied snippets include mock LLM calls, placeholder random scores and untested distributed-service sketches. The repo preserves those concepts as history, not production claims.
+Python 3.10+:
 
-## Primary engineering objectives
+    python -m pip install -e '.[test,ui]'
+    python -m pytest -q
+    sil run --rounds 10 --trials 128 --seed 2026 --output audit.json
+    sil chat
 
-Synthetic model of state/action/constraints; vectorized stochastic rollouts with reproducible seeds; explicit Bayesian hypothesis likelihoods; counterfactual baseline utility; non-executing, optional LLM explanation; human-controlled terminal interface; rigorous independent-seed baselines; compute-budget-aware search. Proposed market, geopolitical, distributed and value-of-information modules remain distinct from implemented code.
+Terminal commands: /help, /run 3, /agents, /inspect 1, /history, /reset, /quit. All actions are simulated. UI:
+
+    streamlit run app.py
+
+On Docker-equipped hosts:
+
+    docker compose up --build
+
+Open http://localhost:8501. The LLM is OFF by default; the optional /explain command uses OPENROUTER_API_KEY from environment variables, never a committed key. Docker Compose is a local single-service UI, **not** the previously sketched distributed worker cluster.
+
+## What is in GitHub
+
+- archive/DEVELOPMENT_TIMELINE.md — chronological design stages from the original OpenRouter quickstart through adaptive compute proposals.
+- archive/FORMAL_CLAIMS.md — preserve early entropy, pressure, Bayesian, Lyapunov, inevitability, value hunting and regret assertions, including invalid and unproven ones, adjacent to counterexamples.
+- archive/PROTOTYPE_CATALOG.md — inventory of earlier code variants, domains and UI proposals.
+- archive/DESIGN_DECISIONS.md — objective-function alternatives, six cognitive layers, infrastructure variants and efficiency-first decisions.
+- legacy/original_paper_draft.tex — original user-supplied manuscript including its historic claims and illustrative TikZ figures; not scientifically endorsed.
+- legacy/snippets/ and legacy/variants/ — preserved historical *selected* code excerpts, including deliberately flawed prototypes.
+- docs/paper.tex — qualified working research note; docs/RESEARCH.md and ARCHITECTURE.md explain current scope and future falsification tests.
+- src/sil/, app.py, tests/, .github/workflows/ci.yml — operational synthetic v0.1 engine, terminal, optional Streamlit, tests and CI.
+
+## Scientific status and honesty
+
+Original "Quantum Automata" refers to parallel **classical** hypothetical models, not quantum hardware. A low-entropy outcome distribution does not imply high probability of favorable outcomes or inevitable victory. Old 3D constant planes are not measured entropy basins. The historical Flask "Core LLM" was a string formatter rather than an actual language model. Describing these early ideas as operational or publication-proven would be incorrect.
+
+**Archival completeness:** The GitHub archive provides a detailed reconstructed chronology, original paper, selected original and reconstructed code, and a formal-claims registry. It is **not yet a byte-for-byte export of every source-chat message and every code block**; that requires an authorized raw conversation export. Track lossless parity in issue #1. No earlier idea should be erased merely because it was superseded.
 
 ## Security and provenance
 
-This repository is public. Do not commit API keys, raw private chat exports containing personal data, account credentials or proprietary datasets. Use GitHub history, reproducible tests and versioned experiment records to establish what actually works.
+This repository is PUBLIC. Never commit API keys, private credentials, unredacted personal chat exports, or proprietary data. Keep seed, parameters, simulator version, baseline, independent holdout evaluations and true failure results with every experimental assertion.
