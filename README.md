@@ -74,6 +74,19 @@ The new module computes a *one-batch* posterior predictive change in the best **
 
 The terminal-style UI supports /query 2 720 c_voc, /query 2 720 c_voc_governor 0.0001 and /query-report for complete results. Read docs/CONSTRAINED_VALUE_OF_COMPUTATION.md, docs/C_VOC_RESULTS.md and docs/paper.tex. The original historical archive and all earlier experimental modes remain present.
 
+## Multi-Query Certificate Planning v0.6
+
+Two experimental policies now plan a **set of future safety queries across all three modeled regimes**, rather than requiring each one-batch query to immediately change the authorized decision. Predictive certificate_portfolio enumerates finite Beta–Binomial cell-certification forecasts and ranks *precommitted* multi-model plans. certificate_targeted is a cheaper uncalibrated plug-in alternative; neither bypasses the original conservative KL safety gate. Exact multi-stage metareasoning and real-world safety are NOT implemented.
+
+Crucial computational correction: Query Lab now uses **lazy, independent seeded generators for each model/action and each reward/safety channel**. Only selected cell queries actually produce Bernoulli observations. Earlier pre-lazy benchmarks remain archived with their original workflow commits; they are not directly bit-identical to current lazy-sampler experiments.
+
+    sil query-lab --scenario 2 --trials 128 --budget 576 --method certificate_portfolio --output portfolio.json
+    sil query-lab --scenario 2 --trials 128 --budget 576 --method certificate_targeted --output targeted.json
+    python experiments/certificate_portfolio_benchmark.py --seeds 8 --maximum 128 --budget 576 --output portfolio-benchmark.json
+    python experiments/cpu_budget_frontier.py --calibration 8 --holdout 12 --budget 576 --maximum 128 --repeats 3 --output cpu-frontier.json
+
+**Measured result, not a general guarantee:** In 96 independent synthetic contexts, the predictive portfolio matched the analytically feasible oracle in 47/96 cases at the same 576 *actually generated* cell queries, against 31/96 for uniform. However, portfolio took ~3.4x the mean measured CPU. With a separately calibrated equal-CPU budget, the portfolio had to use only its 144-query pilot and matched the oracle in 4/48 holdout contexts, versus uniform's 12/48 at 576. Uniform therefore remains the default. Full context, raw workflow links, mathematical limits and explicit negative findings: docs/MULTI_QUERY_CERTIFICATE_PLANNING.md, docs/MULTI_QUERY_RESULTS.md, docs/CPU_BUDGET_RESULTS.md.
+
 ## Scientific status and honesty
 
 Original "Quantum Automata" refers to parallel **classical** hypothetical models, not quantum hardware. A low-entropy outcome distribution does not imply high probability of favorable outcomes or inevitable victory. Old 3D constant planes are not measured entropy basins. The historical Flask "Core LLM" was a string formatter rather than an actual language model. Describing these early ideas as operational or publication-proven would be incorrect.
