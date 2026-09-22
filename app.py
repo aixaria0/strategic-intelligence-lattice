@@ -63,7 +63,7 @@ if command:
         elif verb == "query":
             scenario_id = int(parts[1]) if len(parts) > 1 else 0
             query_budget = int(parts[2]) if len(parts) > 2 else 9 * trials
-            query_method = parts[3].lower() if len(parts) > 3 else "adaptive"
+            query_method = parts[3].lower() if len(parts) > 3 else "uniform"
             qcfg = QueryConfig(maximum=trials, budget=query_budget,
                                threshold=safety, seed=int(seed))
             synthetic_context = make_scenario(qcfg.seed, scenario_id, qcfg.threshold)
