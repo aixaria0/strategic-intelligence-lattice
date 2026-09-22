@@ -19,6 +19,8 @@ jobs:
       - run: python experiments/query_budget_benchmark.py --seeds 6 --budget 288 --maximum 64 --output /tmp/sil-query-lab.json
       - run: sil query-lab --scenario 2 --trials 64 --budget 288 --method hybrid --output /tmp/sil-query-cli.json
       - run: sil query-lab --scenario 2 --trials 64 --budget 288 --method evsi_reward --output /tmp/sil-evsi-cli.json
+      - run: sil query-lab --scenario 2 --trials 64 --budget 288 --method c_voc --output /tmp/sil-voc-cli.json
+      - run: sil query-lab --scenario 2 --trials 128 --budget 1152 --method c_voc_governor --compute-price 1.0 --output /tmp/sil-voc-governor.json
       - run: python experiments/evsi_reward_benchmark.py --seeds 2 --maximum 64 --budget 288 --output /tmp/sil-evsi-benchmark.json
       - run: sil run --rounds 2 --trials 32 --output /tmp/sil-audit.json
       - run: sil run --rounds 2 --trials 32 --allocation adaptive --budget 288 --output /tmp/sil-adaptive-audit.json
