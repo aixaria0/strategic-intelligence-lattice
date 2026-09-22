@@ -22,7 +22,7 @@ def test_budget_and_sample_cap_and_reproducibility():
     scenario = make_scenario(cfg.seed, 11, cfg.threshold)
     fixed = allocate(scenario, cfg, "fixed")
     assert fixed["used"] == CELLS * cfg.maximum
-    for name in ("adaptive", "random", "uniform"):
+    for name in ("adaptive", "hybrid", "random", "uniform"):
         result = allocate(scenario, cfg, name)
         assert result == allocate(scenario, cfg, name)
         assert result["used"] <= cfg.budget
