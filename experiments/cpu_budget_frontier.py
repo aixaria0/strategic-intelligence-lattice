@@ -146,9 +146,12 @@ if __name__ == "__main__":
     p.add_argument("--budget", type=int, default=576)
     p.add_argument("--maximum", type=int, default=128)
     p.add_argument("--repeats", type=int, default=3)
+    p.add_argument("--calibration-seed", type=int, default=202613)
+    p.add_argument("--holdout-seed", type=int, default=202614)
     p.add_argument("--output", type=Path)
     a = p.parse_args()
-    report = study(a.calibration, a.holdout, a.budget, a.maximum, a.repeats)
+    report = study(a.calibration, a.holdout, a.budget, a.maximum, a.repeats,
+                   a.calibration_seed, a.holdout_seed)
     print(json.dumps({"calibration": report["calibration"],
                       "holdout": report["holdout"]}, indent=2))
     if a.output:
