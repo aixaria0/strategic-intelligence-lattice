@@ -145,7 +145,8 @@ def assess(reward_sum, safety_sum, counts, scenario, cfg):
     done = not rivals or all(float(lows[picked]) > float(highs[a]) for a in rivals)
     return dict(action=picked, certified=certified, possible=possible,
                 scores=scores, reward_mean=reward_mean, safe_mean=safe_mean,
-                safe_lower=safe_lower, certificate=bool(done))
+                safe_lower=safe_lower, safe_upper=safe_upper,
+                certificate=bool(done))
 
 def quick_status(reward_sum, safety_sum, counts, scenario):
     """Only cheap running means: no KL inversion on each adaptive batch."""
@@ -235,6 +236,28 @@ def allocate(scenario, cfg, method):
     value = np.asarray(scenario.posterior) @ scenario.reward_prob
     exploratory_safe = bool(np.all(
         scenario.safety_prob[:, exploratory] >= cfg.threshold))
+    # PLUG-IN planning estimate, not a lower bound on actual required samples:
+    # if expected phat remained unchanged, how many iid Bernoulli samples
+    # would binary-KL screening need to certify the safety threshold?
+    c = log(4 * CELLS * cfg.maximum / cfg.delta)
+    safety_requirements = []
+    for model in range(K):
+        for candidate in (1, 2):
+            phat = float(final["safe_mean"][model, candidate])
+            if phat <= cfg.threshold:
+                projected = None
+            else:
+                divergence = float(binary_kl(phat, cfg.threshold))
+                projected = int(np.ceil(c / divergence)) if divergence > 0 else None
+            safety_requirements.append({
+                "model": model, "action": candidate,
+                "sampled": int(counts[model, candidate]),
+                "empirical_safe_probability": phat,
+                "conservative_lower": float(final["safe_lower"][model, candidate]),
+                "conservative_upper": float(final["safe_upper"][model, candidate]),
+                "plug_in_samples_for_safety_certificate": projected,
+                "within_per_cell_cap": projected is not None and projected <= cfg.maximum,
+            })
     return dict(method=method, scenario=scenario.identifier,
                 budget=cap, used=used, counts=counts.tolist(),
                 action=a, oracle=scenario.oracle_action,
@@ -250,6 +273,7 @@ def allocate(scenario, cfg, method):
                     if exploratory_safe else None),
                 exploratory_utility=float(value[exploratory]),
                 exploration_is_not_authorized=True,
+                safety_information_requirements=safety_requirements,
                 certificate=bool(final["certificate"]), stop_reason=stop,
                 certified_actions=final["certified"],
                 possibly_safe_actions=final["possible"],
