@@ -16,7 +16,7 @@ from time import perf_counter
 import numpy as np
 from sil.query_lab import QueryConfig, allocate, make_scenario
 
-METHODS = ("fixed", "uniform", "adaptive", "c_voc", "certificate_portfolio")
+METHODS = ("fixed", "uniform", "adaptive", "c_voc", "certificate_portfolio", "certificate_targeted")
 FAMILIES = ("crossing", "near_safe", "boundary", "certificate_ready")
 
 
