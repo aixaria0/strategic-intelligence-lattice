@@ -1,0 +1,30 @@
+name: Reward EVSI Study
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/evsi-reward.yml
+      - src/sil/evsi.py
+      - src/sil/query_lab.py
+      - experiments/evsi_reward_benchmark.py
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[test]'
+      - run: python -m pytest -q tests/test_evsi.py tests/test_query_lab.py
+      - name: Moderate fixed budget
+        run: python experiments/evsi_reward_benchmark.py --seeds 24 --maximum 256 --budget 720 --output evsi-720.json
+      - name: Larger fixed budget
+        run: python experiments/evsi_reward_benchmark.py --seeds 24 --maximum 256 --budget 1152 --output evsi-1152.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evsi-reward-experiment
+          path: |
+            evsi-720.json
+            evsi-1152.json
