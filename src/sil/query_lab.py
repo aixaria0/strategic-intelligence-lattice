@@ -11,6 +11,7 @@ from time import perf_counter
 import numpy as np
 from .evsi import reward_batch_evsi
 from .voc import constrained_batch_voc
+from .certificate_planner import plan_certificate_portfolio
 
 K, A = 3, 3
 CELLS = K * A
@@ -182,7 +183,7 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio"):
         raise ValueError("unknown method")
     reward_stream, safe_stream = streams(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
@@ -211,6 +212,9 @@ def allocate(scenario, cfg, method):
     stop = "budget_exhausted"
     cached_voc = None
     last_information_per_query = None
+    portfolio_queue = []
+    portfolio_history = []
+    fallback_draws_left = 0
     while used < cap:
         if method in ("fixed", "uniform") or (method == "hybrid" and used < cap // 2):
             # Hybrid reserves its first half budget for equal cell coverage,
@@ -255,6 +259,37 @@ def allocate(scenario, cfg, method):
                 # information that one-step predictive lookahead misses.
                 candidates = -counts.astype(float)
             planning_seconds += perf_counter() - started
+        elif method == "certificate_portfolio":
+            if not portfolio_queue and fallback_draws_left == 0:
+                started = perf_counter()
+                checked = assess(reward_sum, safe_sum, counts, scenario, cfg)
+                if checked["certificate"]:
+                    stop = "simultaneous_bound_certificate"
+                    planning_seconds += perf_counter() - started
+                    break
+                planned = plan_certificate_portfolio(
+                    reward_sum, safe_sum, counts, np.asarray(scenario.posterior),
+                    cfg.threshold, cfg.delta, cfg.maximum, cfg.batch, cap - used)
+                lookahead_evaluations += 1
+                if planned is None:
+                    # No affordable forecast is NOT a proof of zero future
+                    # information. Continue fair coverage for a bounded interval.
+                    fallback_draws_left = min(CELLS * cfg.batch, cap - used)
+                else:
+                    portfolio_history.append(planned)
+                    portfolio_queue = [
+                        {"model": entry["model"], "action": entry["action"],
+                         "remaining": entry["planned_draws"]}
+                        for entry in planned["queries"]
+                    ]
+                    last_information_per_query = planned["estimated_gain_per_query"]
+                planning_seconds += perf_counter() - started
+            if portfolio_queue:
+                entry = portfolio_queue[0]
+                candidates = np.full((K, A), -np.inf)
+                candidates[entry["model"], entry["action"]] = 1.0
+            else:
+                candidates = -counts.astype(float)
         elif method == "evsi_reward":
             # EXACT reward-only Beta-Binomial one-batch EVSI for each cell's
             # ACTUAL potential draw count, normalized by simulation query cost.
@@ -289,11 +324,22 @@ def allocate(scenario, cfg, method):
             break
         m, a = np.unravel_index(idx, candidates.shape)
         n = min(cfg.batch, cfg.maximum - int(counts[m, a]), cap - used)
+        if method == "certificate_portfolio" and portfolio_queue:
+            n = min(n, portfolio_queue[0]["remaining"])
+        elif method == "certificate_portfolio":
+            n = min(n, fallback_draws_left)
         if n <= 0:
             stop = "per_cell_limit"
             break
         sample(m, a, int(n))
         used += int(n)
+        if method == "certificate_portfolio":
+            if portfolio_queue:
+                portfolio_queue[0]["remaining"] -= int(n)
+                if portfolio_queue[0]["remaining"] <= 0:
+                    portfolio_queue.pop(0)
+            else:
+                fallback_draws_left -= int(n)
         if method in ("c_voc", "c_voc_governor") and counts[m, a] >= cfg.maximum:
             cached_voc = None
     final = assess(reward_sum, safe_sum, counts, scenario, cfg)
@@ -350,6 +396,17 @@ def allocate(scenario, cfg, method):
                 possibly_safe_actions=final["possible"],
                 posterior=list(scenario.posterior))
 
+    if method == "certificate_portfolio":
+        result.update(
+            planning_seconds=planning_seconds,
+            sampling_seconds=sampling_seconds,
+            portfolio_evaluations=lookahead_evaluations,
+            portfolios=portfolio_history,
+            fallback_after_no_viable_plan=any(
+                plan["joint_certificate_forecast"] < 1 for plan in portfolio_history
+            ) if portfolio_history else True,
+            not_an_optimality_certificate=True,
+        )
     if method in ("c_voc", "c_voc_governor"):
         result.update(
             compute_price=cfg.compute_price if method == "c_voc_governor" else None,
