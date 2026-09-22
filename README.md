@@ -47,7 +47,7 @@ Open http://localhost:8501. The LLM is OFF by default; the optional /explain com
 
 ## Query Lab v0.3 — equal-budget decision research
 
-The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its six allocation methods are fixed full-grid (cost ceiling), uniform, random, adaptive hybrid (half uniform / half adaptive), and experimental exact reward-only EVSI. It is NOT a market predictor or a general strategic control system.
+The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its eight allocation methods are fixed full-grid (cost ceiling), uniform, random, legacy adaptive, hybrid (half uniform / half adaptive), experimental reward-only EVSI, constrained C-VoC and the separately opt-in C-VoC governor. It is NOT a market predictor or a general strategic control system.
 
     sil query-lab --scenario 2 --trials 256 --budget 720 --method hybrid --risk-threshold 0.75 --output query.json
     python experiments/query_budget_benchmark.py --seeds 48 --maximum 256 --budget 720 --output query-benchmark.json
@@ -63,6 +63,16 @@ In the harder query-level testbed, uniform allocation currently outperforms the 
     python experiments/evsi_reward_benchmark.py --seeds 24 --budget 720 --maximum 256 --output evsi-results.json
 
 The calculation in src/sil/evsi.py is exact for the declared independent reward-only Bayesian model, NOT the complete safety-constrained problem. It did not beat uniform on certified choice accuracy or wall time in the initial 24-scenario study. Read docs/EVSI_REWARD.md and docs/EVSI_REWARD_RESULTS.md for formulae, counterexamples and full linked experiments. See docs/QUERY_LAB_RESULTS.md for the 48-scenario lower/higher-budget comparison and docs/SAFETY_INFORMATION_LIMITS.md for the conditional sample-information bound.
+
+## C-VoC v0.5 — Joint reward+safety value of computation
+
+The new module computes a *one-batch* posterior predictive change in the best **safety-certified** expected reward after observing possible paired Bernoulli reward and safety outcomes, under explicitly independent Beta–Bernoulli priors. It adds cost-normalized optional query selection and an explicit price-based experimental governor. It never relaxes the final frequentist safety gate. C-VoC is not a solved multibatch planner or proven faster/better than uniform; the first 36-scenario test matched uniform on certified oracle agreement while consuming more wall time. Therefore uniform remains the query-lab default.
+
+    sil query-lab --scenario 2 --trials 256 --budget 720 --method c_voc --output c-voc.json
+    sil query-lab --scenario 2 --trials 256 --budget 720 --method c_voc_governor --compute-price 0.0001 --output governor.json
+    python experiments/voc_benchmark.py --seeds 12 --maximum 128 --budget 576 --output c-voc-benchmark.json
+
+The terminal-style UI supports /query 2 720 c_voc, /query 2 720 c_voc_governor 0.0001 and /query-report for complete results. Read docs/CONSTRAINED_VALUE_OF_COMPUTATION.md, docs/C_VOC_RESULTS.md and docs/paper.tex. The original historical archive and all earlier experimental modes remain present.
 
 ## Scientific status and honesty
 
