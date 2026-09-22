@@ -38,6 +38,22 @@ ACA does not yet compute this nested expectation; it substitutes a transparent l
 
 \section{Evaluation protocol}
 Report matched-seed baseline uplift, constraint violations, posterior calibration, confidence intervals across independent seeds, simulator calls and CPU time. Compare against random feasible actions, action zero, an oracle synthetic-model policy and ablations of downside/entropy penalties. Real-domain experiments must be separately validated.
+\section{Query-level allocation and a safety-information bottleneck}
+A separate synthetic contextual best-arm laboratory (not the original additive multi-agent simulator) uses nine independent Bernoulli reward/safety query cells, three candidate actions and three hypothetical opponent regimes. Bayesian weights are updated from external synthetic evidence \emph{before} policy evaluation. The oracle computes its expected value analytically from declared model probabilities, and non-baseline actions are considered feasible only when their safety probability exceeds the declared threshold in \emph{every} modeled regime.
+
+The conservative selection rule inverts a time-uniform, cellwise Bernoulli KL concentration bound with union control over all nine cells, both measured channels and all sample prefixes up to the prespecified cap. An unverified exploratory action is also reported solely as a research diagnostic; it is not an authorized choice. On the confidence event under the assumed iid model, any action certified safe by the lower-bound rule meets the stated model-conditional chance constraint. This does not imply correctness if the model class is incomplete or the underlying data are dependent.
+
+\paragraph{A conditional information limit.}
+In two worlds that differ only in one Bernoulli safety cell, with probabilities $p>\theta$ and $q<\theta$, a sequential procedure that certifies or rejects this cell with both types of error at most $\delta<1/2$ must satisfy, subject to the usual finite expected stopping-time and likelihood-integrability assumptions,
+\[
+ \mathbb E_p[N]D_{\mathrm{Bern}}(p\Vert q)\ge
+ D_{\mathrm{Bern}}(1-\delta\Vert\delta).
+\]
+This follows because every observation outside that cell has zero KL divergence between the two worlds, the stopped transcript has expected KL $\mathbb E_p[N]D(p\Vert q)$, and processing that transcript into a binary judgment cannot increase divergence. This limited statement is about cell-level hypothesis discrimination, \emph{not} a lower bound on every algorithm that may choose a safe fallback without certifying the cell.
+
+\paragraph{Measured negative baseline.}
+In the prespecified 48-scenario toy set with cap 1024 samples per cell, full-grid fixed allocation used 9216 queries per scenario. At the equal 4608-query budget, uniform allocation selected the analytic feasible-action oracle in 26/48 cases, pure ACA in 17/48 and the half-uniform hybrid in 20/48. All conservative choices were analytically feasible in these sampled cases, but the allocator did not beat the uniform baseline in decision quality or wall time. These results are exploratory, domain-specific and insufficient for any general efficiency or external-validity claim; per-scenario JSON records and workflow provenance appear in docs/QUERY_LAB_RESULTS.md.
+
 \section{Limitations and research questions}
 The toy model has three fixed opponent hypotheses, finite actions, boundary-dependent likelihood approximation, heuristic safety gate and empirical finite-bin entropy. Unknown strategies and unmodeled constraints can invalidate beliefs. Adaptive model-level computation allocation is implemented as an experimental heuristic, not a proven optimal value-of-information method; an exact expected-value-of-information scheduler, calibrated stopping certificates, MCTS for branching decision processes and a true multi-domain ontology remain proposed.
 \end{document}
