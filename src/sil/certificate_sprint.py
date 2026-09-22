@@ -59,6 +59,29 @@ def sprint_schedule(counts, target: int | None, budget: int,
         raise ValueError("invalid budget or counts")
     proposed = n.copy()
     remaining = budget - int(n.sum())
+    # The operational path always starts from an equal per-cell pilot.
+    # In that common case there are only TWO possible groups: the targeted
+    # action's three model cells and the remaining six cells. Closed-form
+    # integer allocation avoids repeated Python/NumPy water-filling scans.
+    pilot = int(n[0, 0])
+    if bool(np.all(n == pilot)):
+        extra = np.zeros((3, 3), dtype=int)
+        if target is not None:
+            committed = min(remaining, 3 * (maximum - pilot))
+            q, rem = divmod(committed, 3)
+            for model in range(3):
+                extra[model, target] = q + int(model < rem)
+            remaining -= committed
+        cells = [(m, a) for m in range(3) for a in range(3)
+                 if target is None or a != target]
+        q, rem = divmod(remaining, len(cells))
+        for i, (m, a) in enumerate(cells):
+            extra[m, a] = q + int(i < rem)
+        if bool(np.all(extra <= maximum - n)) and int(extra.sum()) == budget - int(n.sum()):
+            return [(m, a, int(extra[m, a])) for m in range(3)
+                    for a in range(3) if extra[m, a] > 0]
+        # A nonstandard input may have unequal cells or caps; keep the
+        # general exact water-filling route below rather than overspending.
     if target is not None:
         cells = [(m, target) for m in range(3)]
         eligible = min(remaining, sum(maximum - int(n[m, target]) for m in range(3)))
