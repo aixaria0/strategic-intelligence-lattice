@@ -1,0 +1,32 @@
+name: Query Lab Budget Curves
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/query-lab.yml
+      - src/sil/query_lab.py
+      - experiments/query_budget_benchmark.py
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[test]'
+      - run: python -m pytest -q tests/test_query_lab.py
+      - name: Low budget
+        run: python experiments/query_budget_benchmark.py --seeds 48 --budget 288 --maximum 256 --output query-288.json
+      - name: Medium budget
+        run: python experiments/query_budget_benchmark.py --seeds 48 --budget 720 --maximum 256 --output query-720.json
+      - name: High budget
+        run: python experiments/query_budget_benchmark.py --seeds 48 --budget 1152 --maximum 256 --output query-1152.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: query-lab-budget-curves
+          path: |
+            query-288.json
+            query-720.json
+            query-1152.json
