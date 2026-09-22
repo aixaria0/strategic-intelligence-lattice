@@ -108,3 +108,18 @@ def test_time_uniform_kl_intervals_are_conservative_at_known_extremes():
     assert np.all(high < 0.10)
     assert np.all(np.isfinite(lower))
     assert np.all(np.isfinite(high))
+
+
+def test_lazy_query_sampling_matches_shared_prefixes_without_eager_full_grid():
+    cfg = QueryConfig(maximum=128, budget=360, seed=891)
+    scenario = make_scenario(cfg.seed, 15, cfg.threshold)
+    full_reward, full_safety = streams(scenario, cfg)
+    for method in ("fixed", "uniform", "certificate_portfolio",
+                   "certificate_targeted", "adaptive"):
+        record = allocate(scenario, cfg, method)
+        assert record["actual_bernoulli_draws"] == 2 * record["used"]
+        for m in range(K):
+            for a in range(A):
+                n = record["counts"][m][a]
+                assert record["sampled_reward_successes"][m][a] == int(full_reward[m, a, :n].sum())
+                assert record["sampled_safety_successes"][m][a] == int(full_safety[m, a, :n].sum())
