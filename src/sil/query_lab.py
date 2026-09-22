@@ -147,6 +147,14 @@ def assess(reward_sum, safety_sum, counts, scenario, cfg):
                 scores=scores, reward_mean=reward_mean, safe_mean=safe_mean,
                 safe_lower=safe_lower, certificate=bool(done))
 
+def quick_status(reward_sum, safety_sum, counts, scenario):
+    """Only cheap running means: no KL inversion on each adaptive batch."""
+    reward_mean = reward_sum / counts
+    safe_mean = safety_sum / counts
+    return dict(scores=np.asarray(scenario.posterior) @ reward_mean,
+                reward_mean=reward_mean, safe_mean=safe_mean)
+
+
 def priority(counts, status, scenario, cfg):
     scores = status["scores"]
     top = int(np.argmax(scores))
@@ -192,10 +200,15 @@ def allocate(scenario, cfg, method):
         elif method == "random":
             candidates = chooser.random((K, A))
         else:
-            current = assess(reward_sum, safe_sum, counts, scenario, cfg)
-            if current["certificate"]:
-                stop = "simultaneous_bound_certificate"
-                break
+            current = quick_status(reward_sum, safe_sum, counts, scenario)
+            # Time-uniform KL interval calculations are costlier than means.
+            # Only check for certified early stopping at fixed-budget checkpoints.
+            check_interval = CELLS * 64
+            if used >= check_interval and used % check_interval == 0:
+                checked = assess(reward_sum, safe_sum, counts, scenario, cfg)
+                if checked["certificate"]:
+                    stop = "simultaneous_bound_certificate"
+                    break
             candidates = priority(counts, current, scenario, cfg)
         candidates[counts >= cfg.maximum] = -np.inf
         idx = int(np.argmax(candidates))
