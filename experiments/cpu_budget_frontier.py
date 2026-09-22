@@ -110,10 +110,16 @@ def study(calibration=8, holdout=12, budget=576, maximum=128,
                 "interpretation": "do not claim equal-CPU superiority",
             }
         else:
+            selected = summarize(heldout, f"{method}@{size}")
             holdout_results[method] = {
-                "status": "CALIBRATION_CPU_MATCHED",
+                "status": ("CALIBRATION_MATCH_AND_HOLDOUT_MEAN_CPU_WITHIN_BASELINE"
+                           if selected["mean_cpu_seconds"] <= holdout_results["uniform_bulk"]["mean_cpu_seconds"]
+                           else "CALIBRATION_MATCH_BUT_HOLDOUT_MEAN_CPU_OVERRUN"),
                 "calibrated_max_queries": size,
-                "result": summarize(heldout, f"{method}@{size}"),
+                "result": selected,
+                "holdout_mean_cpu_difference_seconds": (
+                    selected["mean_cpu_seconds"] -
+                    holdout_results["uniform_bulk"]["mean_cpu_seconds"]),
             }
     return {
         "scope": "same-runner finite synthetic calibration and independent holdout",
