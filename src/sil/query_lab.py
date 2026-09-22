@@ -88,16 +88,51 @@ def streams(scenario, cfg):
             s[m, a] = rng.random(cfg.maximum) < scenario.safety_prob[m, a]
     return r, s
 
+def binary_kl(observed, candidate):
+    """Bernoulli KL with stable zero/one edge handling."""
+    observed, candidate = np.broadcast_arrays(
+        np.asarray(observed, dtype=float), np.asarray(candidate, dtype=float))
+    q = np.clip(candidate, 1e-15, 1.0 - 1e-15)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        first = np.where(observed > 0, observed * np.log(observed / q), 0.0)
+        second = np.where(observed < 1, (1 - observed) *
+                          np.log((1 - observed) / (1 - q)), 0.0)
+    return first + second
+
+
+def kl_confidence_interval(successes, counts, cfg):
+    """Time-uniform over all n<=maximum, cells and both Bernoulli channels.
+
+    Each one-sided Chernoff tail is <= exp(-n KL(phat || p)).
+    The union covers two tails x two channels x CELLS x maximum.
+    This is conservative and CONDITIONAL on iid Bernoulli cell streams.
+    """
+    p = np.asarray(successes, dtype=float) / counts
+    level = log(4 * CELLS * cfg.maximum / cfg.delta) / counts
+    lo, hi = np.zeros_like(p), p.copy()
+    for _ in range(36):
+        mid = (lo + hi) / 2
+        too_far = binary_kl(p, mid) > level
+        lo = np.where(too_far, mid, lo)
+        hi = np.where(too_far, hi, mid)
+    lower = hi
+    lo, hi = p.copy(), np.ones_like(p)
+    for _ in range(36):
+        mid = (lo + hi) / 2
+        too_far = binary_kl(p, mid) > level
+        hi = np.where(too_far, mid, hi)
+        lo = np.where(too_far, lo, mid)
+    upper = lo
+    return lower, upper
+
+
 def assess(reward_sum, safety_sum, counts, scenario, cfg):
     reward_mean = reward_sum / counts
     safe_mean = safety_sum / counts
-    # Uniform Hoeffding union bound over all cells AND all sample sizes.
-    # Valid for iid bounded observations and fixed pre-simulation posterior.
-    radius = np.sqrt(log(4 * CELLS * cfg.maximum / cfg.delta) / (2.0 * counts))
-    value_lower = np.clip(reward_mean - radius, 0.0, 1.0)
-    value_upper = np.clip(reward_mean + radius, 0.0, 1.0)
-    safe_lower = np.clip(safe_mean - radius, 0.0, 1.0)
-    safe_upper = np.clip(safe_mean + radius, 0.0, 1.0)
+    # Unlike a generic Hoeffding radius, the Bernoulli KL inversion
+    # is substantially tighter for very high safety probabilities.
+    value_lower, value_upper = kl_confidence_interval(reward_sum, counts, cfg)
+    safe_lower, safe_upper = kl_confidence_interval(safety_sum, counts, cfg)
     safe_lower[:, 0], safe_upper[:, 0] = 1.0, 1.0
     certified = [0] + [a for a in (1, 2)
                        if bool(np.all(safe_lower[:, a] >= cfg.threshold))]
