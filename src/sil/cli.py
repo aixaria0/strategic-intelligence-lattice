@@ -56,7 +56,7 @@ def chat(config: Config, num_agents: int, evolve: bool,
 
 def main():
     parser = argparse.ArgumentParser(description="SIL: synthetic strategy simulation")
-    parser.add_argument("mode", nargs="?", choices=["run", "chat"], default="chat")
+    parser.add_argument("mode", nargs="?", choices=["run", "chat", "query-lab"], default="chat")
     parser.add_argument("--rounds", type=int, default=10)
     parser.add_argument("--trials", type=int, default=128)
     parser.add_argument("--horizon", type=int, default=8)
@@ -65,8 +65,30 @@ def main():
     parser.add_argument("--no-evolution", action="store_true")
     parser.add_argument("--allocation", choices=["fixed", "adaptive"], default="fixed")
     parser.add_argument("--budget", type=int, help="action-rollout budget for adaptive mode; default=fixed cap")
+    parser.add_argument("--scenario", type=int, default=0,
+                        help="query-lab context id")
+    parser.add_argument("--method", choices=["fixed", "uniform", "random", "adaptive"],
+                        default="adaptive", help="query-lab allocation method")
+    parser.add_argument("--risk-threshold", type=float, default=0.75,
+                        help="query-lab minimum safety probability under each model")
+    parser.add_argument("--delta", type=float, default=0.05,
+                        help="query-lab familywise failure budget")
     parser.add_argument("--output", type=Path, help="JSON audit snapshot path")
     args = parser.parse_args()
+    if args.mode == "query-lab":
+        from .query_lab import QueryConfig, allocate, make_scenario
+        query_cfg = QueryConfig(
+            budget=args.budget if args.budget is not None else 9 * args.trials,
+            maximum=args.trials, seed=args.seed, threshold=args.risk_threshold,
+            delta=args.delta,
+        )
+        scenario = make_scenario(args.seed, args.scenario, query_cfg.threshold)
+        result = allocate(scenario, query_cfg, args.method)
+        print(json.dumps(result, indent=2))
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        return
     cfg = Config(trials=args.trials, horizon=args.horizon, seed=args.seed)
     if args.mode == "chat":
         chat(cfg, args.agents, not args.no_evolution, args.allocation, args.budget)
