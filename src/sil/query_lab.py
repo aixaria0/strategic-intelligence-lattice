@@ -8,6 +8,7 @@ This model is not a representation of real markets or political actors.
 from dataclasses import dataclass
 from math import log
 import numpy as np
+from .evsi import reward_batch_evsi
 
 K, A = 3, 3
 CELLS = K * A
@@ -176,7 +177,7 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward"):
         raise ValueError("unknown method")
     reward_stream, safe_stream = streams(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
@@ -202,6 +203,15 @@ def allocate(scenario, cfg, method):
             candidates = -counts.astype(float)
         elif method == "random":
             candidates = chooser.random((K, A))
+        elif method == "evsi_reward":
+            # This is exact one-batch EVSI only under the independent
+            # Beta-Bernoulli reward model. Final safety screening is unchanged.
+            # When none of the one-batch queries can change reward ranking,
+            # spread queries evenly rather than fabricating a positive EVSI.
+            candidates = reward_batch_evsi(
+                reward_sum, counts, np.asarray(scenario.posterior), cfg.batch)
+            if not np.any(candidates[counts < cfg.maximum] > 1e-12):
+                candidates = -counts.astype(float)
         else:
             current = quick_status(reward_sum, safe_sum, counts, scenario)
             # Time-uniform KL interval calculations are costlier than means.
