@@ -20,7 +20,7 @@ from certificate_portfolio_benchmark import context, FAMILIES
 from sil.query_lab import QueryConfig, allocate
 
 CANDIDATES = (144, 288, 432, 576)
-METHODS = ("certificate_portfolio", "certificate_targeted")
+METHODS = ("certificate_portfolio", "certificate_targeted", "certificate_sprint")
 
 
 def measure(case, cfg, method, repeats):
