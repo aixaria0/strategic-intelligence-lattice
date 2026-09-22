@@ -175,7 +175,7 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid"):
         raise ValueError("unknown method")
     reward_stream, safe_stream = streams(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
@@ -195,7 +195,9 @@ def allocate(scenario, cfg, method):
     used = int(counts.sum())
     stop = "budget_exhausted"
     while used < cap:
-        if method in ("fixed", "uniform"):
+        if method in ("fixed", "uniform") or (method == "hybrid" and used < cap // 2):
+            # Hybrid reserves its first half budget for equal cell coverage,
+            # then uses decision-driven sampling. No dominance guarantee.
             candidates = -counts.astype(float)
         elif method == "random":
             candidates = chooser.random((K, A))
