@@ -12,6 +12,7 @@ import numpy as np
 from .evsi import reward_batch_evsi
 from .voc import constrained_batch_voc
 from .certificate_planner import plan_certificate_portfolio, plan_certificate_targeted
+from .certificate_sprint import choose_certificate_sprint, sprint_schedule
 
 K, A = 3, 3
 CELLS = K * A
@@ -200,7 +201,7 @@ def priority(counts, status, scenario, cfg):
     return result
 
 def allocate(scenario, cfg, method):
-    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio", "certificate_targeted"):
+    if method not in ("fixed", "uniform", "random", "adaptive", "hybrid", "evsi_reward", "c_voc", "c_voc_governor", "certificate_portfolio", "certificate_targeted", "certificate_sprint"):
         raise ValueError("unknown method")
     reward_gen, safe_gen = query_generators(scenario, cfg)
     counts = np.zeros((K, A), dtype=int)
@@ -234,6 +235,20 @@ def allocate(scenario, cfg, method):
     portfolio_queue = []
     portfolio_history = []
     fallback_draws_left = 0
+    sprint_pilot = None
+    if method == "certificate_sprint":
+        started = perf_counter()
+        sprint_pilot = choose_certificate_sprint(
+            reward_sum, safe_sum, counts, np.asarray(scenario.posterior), cfg.threshold)
+        plan = sprint_schedule(counts,
+                               sprint_pilot["target_action"] if sprint_pilot else None,
+                               cap, cfg.maximum)
+        planning_seconds += perf_counter() - started
+        for m, a, amount in plan:
+            sample(m, a, amount)
+            used += amount
+        if used != cap:
+            raise AssertionError("sprint failed to account for complete budget")
     while used < cap:
         if method in ("fixed", "uniform") or (method == "hybrid" and used < cap // 2):
             # Hybrid reserves its first half budget for equal cell coverage,
@@ -422,6 +437,13 @@ def allocate(scenario, cfg, method):
                 possibly_safe_actions=final["possible"],
                 posterior=list(scenario.posterior))
 
+    if method == "certificate_sprint":
+        result.update(
+            planning_seconds=planning_seconds,
+            sampling_seconds=sampling_seconds,
+            sprint_pilot=sprint_pilot,
+            not_a_safety_certificate=True,
+        )
     if method in ("certificate_portfolio", "certificate_targeted"):
         result.update(
             planning_seconds=planning_seconds,
