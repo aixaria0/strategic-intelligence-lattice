@@ -204,13 +204,20 @@ def allocate(scenario, cfg, method):
         elif method == "random":
             candidates = chooser.random((K, A))
         elif method == "evsi_reward":
-            # This is exact one-batch EVSI only under the independent
-            # Beta-Bernoulli reward model. Final safety screening is unchanged.
-            # When none of the one-batch queries can change reward ranking,
-            # spread queries evenly rather than fabricating a positive EVSI.
-            candidates = reward_batch_evsi(
-                reward_sum, counts, np.asarray(scenario.posterior), cfg.batch)
-            if not np.any(candidates[counts < cfg.maximum] > 1e-12):
+            # EXACT reward-only Beta-Binomial one-batch EVSI for each cell's
+            # ACTUAL potential draw count, normalized by simulation query cost.
+            # Final safety screening is separate and unchanged.
+            pending = np.minimum(np.minimum(cfg.batch, cap - used),
+                                 cfg.maximum - counts)
+            candidates = np.full((K, A), -np.inf)
+            for block_size in np.unique(pending[pending > 0]):
+                information = reward_batch_evsi(
+                    reward_sum, counts, np.asarray(scenario.posterior), int(block_size))
+                candidates[pending == block_size] = (
+                    information[pending == block_size] / float(block_size))
+            if not np.any(candidates[np.isfinite(candidates)] > 1e-12):
+                # Do not fabricate information when the next batch cannot
+                # alter the reward-only choice.
                 candidates = -counts.astype(float)
         else:
             current = quick_status(reward_sum, safe_sum, counts, scenario)
