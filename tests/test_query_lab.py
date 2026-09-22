@@ -31,6 +31,9 @@ def test_budget_and_sample_cap_and_reproducibility():
         assert max(max(row) for row in result["counts"]) <= cfg.maximum
         assert result["action"] in range(A)
         assert result["truly_safe"]
+        assert result["exploration_is_not_authorized"] is True
+        assert result["exploratory_action"] in range(A)
+        assert result["exploratory_regret_if_safe"] is None or result["exploratory_regret_if_safe"] >= 0
     with pytest.raises(ValueError):
         allocate(scenario, cfg, "unknown")
 
@@ -73,3 +76,14 @@ def test_no_fabricated_true_value_when_high_risk_action_unavailable():
     assert result["oracle"] in feasible
     assert selected in feasible  # simultaneous conservative lower bound or a=0
     assert result["regret"] >= 0
+
+
+def test_exploratory_signal_is_reported_separately_from_certified_selection():
+    cfg = QueryConfig(budget=576, maximum=128, seed=199)
+    scenario = make_scenario(cfg.seed, 8, cfg.threshold)
+    result = allocate(scenario, cfg, "adaptive")
+    assert result["action"] in result["certified_actions"]
+    assert result["exploratory_action"] in range(A)
+    assert result["exploration_is_not_authorized"]
+    if not result["exploratory_truly_safe"]:
+        assert result["exploratory_regret_if_safe"] is None
