@@ -128,3 +128,87 @@ def plan_certificate_portfolio(reward_sum: np.ndarray,
                     "not_a_safety_certificate": True,
                 }
     return best
+
+
+def plan_certificate_targeted(reward_sum: np.ndarray,
+                              safety_sum: np.ndarray,
+                              counts: np.ndarray,
+                              weights: np.ndarray,
+                              threshold: float, delta: float,
+                              maximum: int, batch: int, remaining: int
+                              ) -> dict | None:
+    """Cheap plug-in targeting rule without Beta-Binomial enumeration.
+
+    The smoothed estimate p=(1+s)/(2+n) is inserted into a KL cutoff
+    to estimate how many extra draws may be needed for each missing cell.
+    This is NOT a calibrated prediction of certification probability or
+    a confidence guarantee. Final query_lab.assess independently verifies
+    actual safety evidence. No affordable target => uniform fallback.
+    """
+    r, s, n = np.asarray(reward_sum), np.asarray(safety_sum), np.asarray(counts)
+    w = np.asarray(weights, dtype=float)
+    if (r.shape != (3, 3) or s.shape != r.shape or n.shape != r.shape
+            or w.shape != (3,) or not np.isclose(w.sum(), 1)
+            or np.any(n < 1) or np.any(r < 0) or np.any(s < 0)
+            or np.any(r > n) or np.any(s > n) or remaining < 0
+            or not 0 < threshold < 1 or not 0 < delta < 1
+            or not 1 <= batch <= maximum):
+        raise ValueError("invalid targeted planning input")
+    threshold_cost = log(4 * n.size * maximum / delta)
+    estimates = w @ ((1 + r) / (2 + n))
+    certified = [0]
+    for action in (1, 2):
+        if all(certification_forecast(int(s[m, action]), int(n[m, action]), 0,
+                                      threshold, delta, maximum) >= 1.0 for m in range(3)):
+            certified.append(action)
+    incumbent = max(certified, key=lambda a: float(estimates[a]))
+    best = None
+    for action in (1, 2):
+        advantage = float(estimates[action] - estimates[incumbent])
+        if advantage <= 1e-12:
+            continue
+        queries = []
+        cost = 0
+        possible = True
+        for m in range(3):
+            if certification_forecast(int(s[m, action]), int(n[m, action]), 0,
+                                      threshold, delta, maximum) >= 1.0:
+                continue
+            p = float((1 + s[m, action]) / (2 + n[m, action]))
+            if p <= threshold:
+                possible = False
+                break
+            divergence = float(bernoulli_kl(np.asarray(p), threshold))
+            if divergence <= 0:
+                possible = False
+                break
+            needed = max(1, int(np.ceil(threshold_cost / divergence)) - int(n[m, action]))
+            needed = int(np.ceil(needed / batch) * batch)
+            needed = min(needed, int(maximum - n[m, action]))
+            if needed < 1 or int(n[m, action]) + needed > maximum:
+                possible = False
+                break
+            # Reject targets whose plug-in estimated evidence requirement
+            # exceeds the declared per-cell cap. Never fake certification.
+            if (int(n[m, action]) + needed) * divergence <= threshold_cost:
+                possible = False
+                break
+            queries.append({"model": int(m), "action": int(action),
+                            "planned_draws": needed})
+            cost += needed
+        if not possible or cost == 0 or cost > remaining:
+            continue
+        rate = advantage / cost
+        if best is None or rate > best["estimated_gain_per_query"]:
+            best = {
+                "target_action": int(action),
+                "queries": queries,
+                "total_planned_draws": cost,
+                "joint_certificate_forecast": None,
+                "current_reward_advantage": advantage,
+                "estimated_positive_value": None,
+                "estimated_gain_per_query": rate,
+                "planning_assumptions": "cheap Beta-smoothed plug-in safety KL sample target; uncalibrated",
+                "not_a_safety_certificate": True,
+            }
+    return best
