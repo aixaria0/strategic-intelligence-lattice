@@ -1,0 +1,30 @@
+name: Sprint v0.7 Prospective Validation
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/sprint-v07.yml
+      - src/sil/certificate_sprint.py
+      - experiments/cpu_budget_frontier.py
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[test]'
+      - name: Seed-stream and safety invariants
+        run: python -m pytest -q tests/test_certificate_sprint.py tests/test_query_lab.py
+      - name: Fresh unselected 96-context same-query comparison including uniform_bulk
+        run: python experiments/certificate_portfolio_benchmark.py --seeds 24 --seed 202623 --maximum 128 --budget 576 --repeats 3 --output sprint-prospective-96.json
+      - name: Disjoint calibration and 48-context CPU holdout
+        run: python experiments/cpu_budget_frontier.py --calibration 8 --holdout 12 --calibration-seed 202624 --holdout-seed 202625 --maximum 128 --budget 576 --repeats 3 --output sprint-prospective-cpu.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sprint-v07-prospective-raw
+          path: |
+            sprint-prospective-96.json
+            sprint-prospective-cpu.json
