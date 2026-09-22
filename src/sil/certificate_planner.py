@@ -9,6 +9,7 @@ stay fixed during planning, model forecast can be wrong, and candidate lengths
 use a coarse grid. Final actions use the existing frequentist KL safety gate.
 """
 from __future__ import annotations
+from functools import lru_cache
 from itertools import product
 from math import log
 import numpy as np
@@ -16,6 +17,7 @@ from .evsi import beta_binomial_pmf
 from .voc import bernoulli_kl
 
 
+@lru_cache(maxsize=32768)
 def certification_forecast(successes: int, n: int, extra: int,
                            threshold: float, delta: float, maximum: int,
                            cells: int = 9) -> float:
@@ -33,8 +35,12 @@ def certification_forecast(successes: int, n: int, extra: int,
     cutoff = log(4 * cells * maximum / delta)
     certified = ((phat > threshold) &
                  (future_n * bernoulli_kl(phat, threshold) > cutoff))
-    if extra == 0:
-        return float(certified[0])
+    # Exact early exits: no Bernoulli success count could cross the boundary,
+    # or ALL possible counts already cross it. Avoid predictive PMF creation.
+    if not bool(np.any(certified)):
+        return 0.0
+    if bool(np.all(certified)):
+        return 1.0
     probs = beta_binomial_pmf(1 + successes, 1 + n - successes, extra)
     return float(np.sum(probs[certified]))
 
