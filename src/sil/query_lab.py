@@ -176,7 +176,15 @@ def allocate(scenario, cfg, method):
         used += int(n)
     final = assess(reward_sum, safe_sum, counts, scenario, cfg)
     a = final["action"]
+    # Research-only exploration may select a statistically UNcertified action.
+    # It must NEVER replace the certified selection in a real execution path.
+    empirically_feasible = [0] + [a0 for a0 in (1, 2)
+        if np.all(final["safe_mean"][:, a0] >= cfg.threshold)]
+    exploratory = int(max(empirically_feasible,
+                          key=lambda idx: float(final["scores"][idx])))
     value = np.asarray(scenario.posterior) @ scenario.reward_prob
+    exploratory_safe = bool(np.all(
+        scenario.safety_prob[:, exploratory] >= cfg.threshold))
     return dict(method=method, scenario=scenario.identifier,
                 budget=cap, used=used, counts=counts.tolist(),
                 action=a, oracle=scenario.oracle_action,
@@ -184,6 +192,14 @@ def allocate(scenario, cfg, method):
                 selected_true_value=float(value[a]),
                 regret=max(0.0, float(value[scenario.oracle_action] - value[a])),
                 truly_safe=bool(np.all(scenario.safety_prob[:, a] >= cfg.threshold)),
+                exploratory_action=exploratory,
+                exploratory_truly_safe=exploratory_safe,
+                exploratory_oracle_agreement=bool(exploratory == scenario.oracle_action),
+                exploratory_regret_if_safe=(
+                    max(0.0, float(value[scenario.oracle_action] - value[exploratory]))
+                    if exploratory_safe else None),
+                exploratory_utility=float(value[exploratory]),
+                exploration_is_not_authorized=True,
                 certificate=bool(final["certificate"]), stop_reason=stop,
                 certified_actions=final["certified"],
                 possibly_safe_actions=final["possible"],
