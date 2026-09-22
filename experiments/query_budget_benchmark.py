@@ -13,7 +13,7 @@ import numpy as np
 from sil.query_lab import QueryConfig, make_scenario, allocate
 
 
-METHODS = ("fixed", "uniform", "random", "adaptive")
+METHODS = ("fixed", "uniform", "random", "adaptive", "hybrid")
 
 
 def run(seeds=48, budget=720, maximum=256, seed=2026):
@@ -65,7 +65,7 @@ def run(seeds=48, budget=720, maximum=256, seed=2026):
     return {
         "domain": "synthetic crossed-payoff Bernoulli models only",
         "fixed_budget": 9 * maximum,
-        "equal_budget_for_adaptive_uniform_random": budget,
+        "equal_budget_for_adaptive_hybrid_uniform_random": budget,
         "num_scenarios": seeds,
         "oracle_action_counts": {
             str(a): sum(row["oracle_action"] == a for row in records)
