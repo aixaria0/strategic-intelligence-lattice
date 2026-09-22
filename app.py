@@ -70,8 +70,18 @@ if command:
                                compute_price=query_price)
             synthetic_context = make_scenario(qcfg.seed, scenario_id, qcfg.threshold)
             query_result = allocate(synthetic_context, qcfg, query_method)
-            output = ("QUERY LAB — SYNTHETIC RESEARCH ONLY. Exploratory action "
-                      "is NOT safety-approved.\n" + json.dumps(query_result, indent=2))
+            st.session_state.last_query = query_result
+            compact = {key: query_result.get(key) for key in (
+                "method", "action", "oracle", "regret", "truly_safe",
+                "exploratory_action", "exploratory_truly_safe",
+                "exploration_is_not_authorized", "used", "budget",
+                "stop_reason", "lookahead_evaluations", "planning_seconds",
+                "sampling_seconds", "last_information_per_query")}
+            output = ("SIL / QUERY LAB — SYNTHETIC ONLY. Exploratory action "
+                      "is NOT safety-certified.\n" + json.dumps(compact, indent=2)
+                      + "\nUse /query-report for full auditable diagnostics.") 
+        elif verb == "query-report":
+            output = json.dumps(st.session_state.get("last_query", {}), indent=2)
         elif verb == "agents":
             output = json.dumps(lab.leaderboard(), indent=2)
         elif verb == "inspect":
@@ -85,7 +95,7 @@ if command:
             output = explain({"round": lab.round, "board": lab.leaderboard(),
                               "most_recent": lab.history[-1] if lab.history else None})
         elif verb == "help":
-            output = "/run [n] /query [scenario] [budget] [method] [compute_price] /agents /inspect N /history /explain /help — synthetic research only."
+            output = "/run [n] /query [scenario] [budget] [method] [compute_price] /query-report /agents /inspect N /history /explain /help — synthetic research only."
         else:
             output = "Unknown command. Use /help."
     except (ValueError, IndexError, TypeError) as exc:
