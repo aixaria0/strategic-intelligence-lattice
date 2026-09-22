@@ -34,3 +34,22 @@ Exploratory-only suggestions identify additional opportunities but also make uns
 4. Query-level allocation is a contextual **best-arm and constraint-identification testbed**, not yet MCTS or a real-market strategy.
 
 Nothing in this report claims mathematical inevitability, a validated proprietary trading edge or a general-purpose strategic superintelligence.
+
+
+## Larger-sample checkpoint: 1024 trials per cell
+
+GitHub Actions evidence: https://github.com/aixaria0/strategic-intelligence-lattice/actions/runs/35791166791 . Same 48 contexts, same declared synthetic oracle and distributions. Full-grid fixed now uses 9216 cell-samples; the four equal-budget approaches use 4608 each.
+
+| Algorithm | Actual simulated draws | Certified choice matches analytic oracle | Mean analytic decision regret | Exploratory oracle agreement | Unsafe exploratory signals |
+|---|---:|---:|---:|---:|---:|
+| Full-grid fixed (larger budget) | 9216 | 30/48 | 0.04561 | 46/48 | 1/48 |
+| Uniform (equal budget) | 4608 | 26/48 | 0.05986 | 44/48 | 0/48 |
+| Random (equal budget) | 4608 | 27/48 | 0.05740 | 46/48 | 0/48 |
+| Pure ACA (equal budget) | 4608 | 17/48 | 0.08875 | 45/48 | 1/48 |
+| Hybrid (equal budget) | 4608 | 20/48 | 0.08027 | 45/48 | 1/48 |
+
+All certified choices were analytically feasible in this sample. Full-grid fixed registered four decision certificates, random registered one; the other methods recorded none under the implemented stringent familywise confidence requirements. Average elapsed time was higher for adaptive than uniform at this budget too.
+
+**Important negative finding:** The currently implemented model-weighted ranking/safety-boundary priorities are NOT useful enough in the tested synthetic query-level task to beat uniform allocation. Increasing the budget makes this weakness MORE apparent, not less. Do not call ACA a proven superior strategy or infer an inherent real-world edge from the earlier additive simulator's sample savings. The plug-in per-cell required-sample diagnostics and the sequential information bound in docs/SAFETY_INFORMATION_LIMITS.md explain why conservative certification may be intrinsically expensive when safety probabilities approach the constraint threshold.
+
+The next scientifically justified iteration is to replace the ad hoc priority with an explicit **decision-loss-reduction-per-cost** estimator, calibrated safety identification and nontrivial equal-CPU evaluation; this must be measured against uniform, random and the full-grid accuracy ceiling, with independent seeded evaluation and all negative results retained.
