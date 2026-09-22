@@ -78,6 +78,26 @@ Enumeration is exact within the declared conjugate independent-outcome model and
 \paragraph{Constructive and negative evidence.}
 A deterministic test demonstrates a toy state in which another reward batch cannot change the posterior-best reward action but another safety batch can make that action certifiable, giving positive constrained decision value. In the prespecified three-family, 36-scenario synthetic comparison at equal 1152 simulation queries, uniform and joint C-VoC each matched the feasible-action oracle in 14/36 instances; the C-VoC implementation used more measured wall time. The opt-in governor used 576 queries on average and matched the oracle in 10/36 instances. All certified choices were analytically feasible in this finite experiment. The detailed records and workflow provenance in docs/C_VOC_RESULTS.md limit these descriptive observations to the declared toy distributions.
 
+\section{Finite multi-query certificate portfolios and the cost boundary}
+One-batch information value can vanish when a non-baseline candidate needs safety evidence from several modeled regimes simultaneously. To address this delayed-evidence case, we construct a finite portfolio of future model--action query lengths $b_1,b_2,b_3$ for a candidate $a$. For safety-success counts $s_m$ among $n_m$ observations, let $K_m\sim\mathrm{BetaBinomial}(b_m,1+s_m,1+n_m-s_m)$ under an independent Beta--Bernoulli \emph{planning} belief. The probability that the fixed portfolio would complete the same time-uniform KL safety screening rule for all declared regimes is
+\[
+ P_{\mathrm{cert}}(a;\mathbf b,D)=\prod_{m=1}^{3}
+ \sum_{k=0}^{b_m}P(K_m=k\mid D)
+ \mathbf{1}\!\left\{\frac{s_m+k}{n_m+b_m}>\theta,\quad
+ (n_m+b_m)D_{\rm Bern}\!\left(\frac{s_m+k}{n_m+b_m}\middle\|\theta\right)>
+ \log\frac{4M N_{\max}}{\delta}\right\},
+\]
+where $M=9$ is the number of query cells. The product is valid only under the assumed independent safety-cell predictive model. The finite planner maximizes a \emph{heuristic} expected-positive-advantage-per-query surrogate,
+\[
+ Q(a,\mathbf b)=
+ \frac{[\,\widehat V_a-\widehat V_{\mathrm{incumbent}}\,]_+
+ P_{\mathrm{cert}}(a;\mathbf b,D)}{\sum_m b_m},
+\]
+over a coarse grid of affordable positive-length portfolios. This is not exact multi-stage sample information value: posterior reward is frozen within a plan, interim conditioning is not optimized, and the forecast may be misspecified even in the synthetic task. The final selected action is always independently screened on observed outcomes with the original frequentist safety rule.
+
+\paragraph{Actual computation matters.}
+Earlier query benchmarks pre-generated all potential random outcomes, even for unsampled cells. The current code generates only the actually queried Bernoulli reward/safety pairs from independent seeded per-cell and per-channel streams, preserving policy-comparable prefixes. An independent-seed 96-context synthetic benchmark with 576 actually sampled cells per policy recorded feasible-oracle agreement of 47/96 for the portfolio and 31/96 for uniform, with mean true constrained regret $0.07313$ and $0.10404$, respectively. Mean process CPU was approximately $0.01615$ s for the portfolio versus $0.00472$ s for uniform on that GitHub runner. A distinct calibration over 32 contexts selected the largest portfolio budget whose measured mean process CPU did not exceed uniform's CPU at 576 queries; this was only the mandatory 144-query pilot. On disjoint 48-context holdout, that CPU-matched portfolio matched the oracle in 4/48 cases versus uniform in 12/48. All of these are \emph{descriptive synthetic findings}, not general claims of safe or superior control. Raw workflow provenance and methodological limitations are retained in docs/MULTI_QUERY_RESULTS.md and docs/CPU_BUDGET_RESULTS.md. The evidence does not support replacing uniform as the current compute-efficient default.
+
 \section{Limitations and research questions}
 The toy model has three fixed opponent hypotheses, finite actions, boundary-dependent likelihood approximation, heuristic safety gate and empirical finite-bin entropy. Unknown strategies and unmodeled constraints can invalidate beliefs. Adaptive model-level computation allocation is implemented as an experimental heuristic, not a proven optimal value-of-information method; a globally optimal multi-batch constrained information scheduler, calibrated stopping certificates, MCTS for branching decision processes and a true multi-domain ontology remain proposed.
 \end{document}
