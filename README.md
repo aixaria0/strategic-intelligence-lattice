@@ -47,7 +47,7 @@ Open http://localhost:8501. The LLM is OFF by default; the optional /explain com
 
 ## Query Lab v0.3 — equal-budget decision research
 
-The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its five allocation methods are fixed full-grid (cost ceiling), uniform, random, adaptive and hybrid (half uniform / half adaptive). It is NOT a market predictor or a general strategic control system.
+The new synthetic contextual lab includes crossing reward curves, external Bayesian evidence, an analytically evaluable feasible-action oracle, explicit chance constraints, cell-level adaptive sampling, and a strictly separate exploratory channel for uncertified opportunities. Its six allocation methods are fixed full-grid (cost ceiling), uniform, random, adaptive hybrid (half uniform / half adaptive), and experimental exact reward-only EVSI. It is NOT a market predictor or a general strategic control system.
 
     sil query-lab --scenario 2 --trials 256 --budget 720 --method hybrid --risk-threshold 0.75 --output query.json
     python experiments/query_budget_benchmark.py --seeds 48 --maximum 256 --budget 720 --output query-benchmark.json
