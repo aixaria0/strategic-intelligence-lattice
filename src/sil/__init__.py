@@ -1,2 +1,2 @@
-"""Strategic Intelligence Lattice: reproducible synthetic decision research."""
-__version__ = "0.7.0"
+"""Strategic Intelligence Lattice: reproducible decision research and evidence tooling."""
+__version__ = "0.8.0"
