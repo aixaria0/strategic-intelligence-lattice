@@ -16,6 +16,7 @@ jobs:
       - run: python -m pip install -e '.[test,ui]'
       - run: python -m compileall -q src app.py
       - run: python -m pytest -q
+      - run: sil field-lab --input examples/field-events.synthetic.jsonl --output /tmp/sil-field-report.json
       - run: python experiments/query_budget_benchmark.py --seeds 6 --budget 288 --maximum 64 --output /tmp/sil-query-lab.json
       - run: sil query-lab --scenario 2 --trials 64 --budget 288 --method hybrid --output /tmp/sil-query-cli.json
       - run: sil query-lab --scenario 2 --trials 64 --budget 288 --method evsi_reward --output /tmp/sil-evsi-cli.json
@@ -32,6 +33,6 @@ jobs:
         with:
           name: sil-exploratory-${{ matrix.python-version }}
           path: |
+            /tmp/sil-field-report.json
             /tmp/sil-adaptive-audit.json
             /tmp/sil-aca-benchmark.json
-

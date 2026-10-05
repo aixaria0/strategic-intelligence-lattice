@@ -55,8 +55,8 @@ def chat(config: Config, num_agents: int, evolve: bool,
             print(f"Invalid argument: {exc}")
 
 def main():
-    parser = argparse.ArgumentParser(description="SIL: synthetic strategy simulation")
-    parser.add_argument("mode", nargs="?", choices=["run", "chat", "query-lab"], default="chat")
+    parser = argparse.ArgumentParser(description="SIL: synthetic strategy simulation + field evidence bridge")
+    parser.add_argument("mode", nargs="?", choices=["run", "chat", "query-lab", "field-lab"], default="chat")
     parser.add_argument("--rounds", type=int, default=10)
     parser.add_argument("--trials", type=int, default=128)
     parser.add_argument("--horizon", type=int, default=8)
@@ -75,8 +75,22 @@ def main():
                         help="query-lab familywise failure budget")
     parser.add_argument("--compute-price", type=float, default=0.0,
                         help="explicit reward-unit price per query for opt-in c_voc_governor")
+    parser.add_argument("--input", type=Path,
+                        help="field-lab JSON or JSONL input path")
     parser.add_argument("--output", type=Path, help="JSON audit snapshot path")
     args = parser.parse_args()
+    if args.mode == "field-lab":
+        from .field_evidence import build_report, load_events
+        if args.input is None:
+            parser.error("field-lab requires --input")
+        events = load_events(args.input)
+        result = build_report(events, source=str(args.input))
+        rendered = json.dumps(result, ensure_ascii=False, indent=2)
+        print(rendered)
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(rendered + "\n", encoding="utf-8")
+        return
     if args.mode == "query-lab":
         from .query_lab import QueryConfig, allocate, make_scenario
         query_cfg = QueryConfig(
